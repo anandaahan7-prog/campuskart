@@ -7,6 +7,9 @@ history, a fair-price predictor and a spam-listing detector.
 **Tech stack:** Python · Flask · SQLite · scikit-learn · HTML/CSS/JS. It needs no internet
 connection or database server.
 
+**Live demo:** https://campuskart-delta-lilac.vercel.app (demo data resets periodically,
+because Vercel gives each server instance a fresh copy of the database).
+
 ---
 
 ## 1. How to run

@@ -1,0 +1,269 @@
+-- =====================================================================
+--  CampusKart : AI-powered second-hand marketplace for students
+--  Database schema (SQLite)  -  9 tables, 4 views, 6 triggers, indexes
+--  All tables are in 3NF.
+-- =====================================================================
+
+PRAGMA foreign_keys = ON;
+
+DROP VIEW IF EXISTS v_product_details;
+DROP VIEW IF EXISTS v_seller_ratings;
+DROP VIEW IF EXISTS v_category_sales;
+DROP VIEW IF EXISTS v_admin_stats;
+
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS product_views;
+DROP TABLE IF EXISTS search_history;
+DROP TABLE IF EXISTS wishlist;
+DROP TABLE IF EXISTS reviews;
+DROP TABLE IF EXISTS orders;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS users;
+
+-- ---------------------------------------------------------------------
+-- 1. USERS : students and admins
+-- ---------------------------------------------------------------------
+CREATE TABLE users (
+    user_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT    NOT NULL,
+    email         TEXT    NOT NULL UNIQUE,
+    password_hash TEXT    NOT NULL,
+    role          TEXT    NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    branch        TEXT,
+    year          INTEGER CHECK (year BETWEEN 1 AND 4),
+    phone         TEXT,
+    is_blocked    INTEGER NOT NULL DEFAULT 0 CHECK (is_blocked IN (0, 1)),
+    created_at    TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 2. CATEGORIES
+-- ---------------------------------------------------------------------
+CREATE TABLE categories (
+    category_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL UNIQUE,
+    icon        TEXT NOT NULL            -- emoji shown on the website
+);
+
+-- ---------------------------------------------------------------------
+-- 3. PRODUCTS : items listed for sale
+-- ---------------------------------------------------------------------
+CREATE TABLE products (
+    product_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    seller_id      INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    category_id    INTEGER NOT NULL REFERENCES categories(category_id),
+    title          TEXT    NOT NULL,
+    description    TEXT    NOT NULL,
+    original_price REAL    NOT NULL CHECK (original_price > 0),
+    price          REAL    NOT NULL CHECK (price > 0),
+    condition      TEXT    NOT NULL CHECK (condition IN ('New', 'Like New', 'Good', 'Fair')),
+    age_months     INTEGER NOT NULL DEFAULT 0 CHECK (age_months >= 0),
+    status         TEXT    NOT NULL DEFAULT 'available'
+                   CHECK (status IN ('pending', 'available', 'sold', 'rejected', 'removed')),
+    is_flagged     INTEGER NOT NULL DEFAULT 0 CHECK (is_flagged IN (0, 1)),
+    spam_score     REAL    NOT NULL DEFAULT 0,      -- filled by AI spam detector
+    flag_reason    TEXT,
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 4. ORDERS : one row per purchase
+-- ---------------------------------------------------------------------
+CREATE TABLE orders (
+    order_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER NOT NULL REFERENCES products(product_id),
+    buyer_id   INTEGER NOT NULL REFERENCES users(user_id),
+    price      REAL    NOT NULL CHECK (price > 0),
+    status     TEXT    NOT NULL DEFAULT 'placed'
+               CHECK (status IN ('placed', 'completed', 'cancelled')),
+    ordered_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 5. REVIEWS : buyer rates the seller after a completed order
+-- ---------------------------------------------------------------------
+CREATE TABLE reviews (
+    review_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id   INTEGER NOT NULL UNIQUE REFERENCES orders(order_id),  -- one review per order
+    rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment    TEXT,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 6. WISHLIST : composite primary key (M:N between users and products)
+-- ---------------------------------------------------------------------
+CREATE TABLE wishlist (
+    user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    added_at   TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    PRIMARY KEY (user_id, product_id)
+);
+
+-- ---------------------------------------------------------------------
+-- 7. SEARCH_HISTORY : input for the AI recommender
+-- ---------------------------------------------------------------------
+CREATE TABLE search_history (
+    search_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    query       TEXT    NOT NULL,
+    searched_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 8. PRODUCT_VIEWS : which products a user opened (input for recommender)
+-- ---------------------------------------------------------------------
+CREATE TABLE product_views (
+    view_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    product_id INTEGER NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    viewed_at  TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- ---------------------------------------------------------------------
+-- 9. NOTIFICATIONS : mostly created automatically by triggers
+-- ---------------------------------------------------------------------
+CREATE TABLE notifications (
+    notif_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    message    TEXT    NOT NULL,
+    is_read    INTEGER NOT NULL DEFAULT 0 CHECK (is_read IN (0, 1)),
+    created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- =====================================================================
+--  INDEXES : speed up the most frequent queries
+-- =====================================================================
+CREATE INDEX idx_products_status_cat ON products(status, category_id);
+CREATE INDEX idx_products_seller     ON products(seller_id);
+CREATE INDEX idx_orders_buyer        ON orders(buyer_id);
+CREATE INDEX idx_search_user         ON search_history(user_id, searched_at);
+CREATE INDEX idx_views_user          ON product_views(user_id, viewed_at);
+CREATE INDEX idx_notif_user          ON notifications(user_id, is_read);
+
+-- =====================================================================
+--  TRIGGERS : business rules enforced inside the database
+-- =====================================================================
+
+-- T1. Block buying an item that is not available, or buying your own item.
+CREATE TRIGGER trg_order_validate
+BEFORE INSERT ON orders
+BEGIN
+    SELECT RAISE(ABORT, 'This product is no longer available')
+    WHERE (SELECT status FROM products WHERE product_id = NEW.product_id) <> 'available';
+
+    SELECT RAISE(ABORT, 'You cannot buy your own product')
+    WHERE (SELECT seller_id FROM products WHERE product_id = NEW.product_id) = NEW.buyer_id;
+END;
+
+-- T2. When an order is placed: mark product sold and notify the seller.
+CREATE TRIGGER trg_order_placed
+AFTER INSERT ON orders
+BEGIN
+    UPDATE products SET status = 'sold' WHERE product_id = NEW.product_id;
+
+    INSERT INTO notifications (user_id, message)
+    SELECT p.seller_id,
+           'Your item "' || p.title || '" was bought by ' ||
+           (SELECT name FROM users WHERE user_id = NEW.buyer_id) ||
+           ' for Rs. ' || CAST(NEW.price AS INTEGER) || '.'
+    FROM products p WHERE p.product_id = NEW.product_id;
+END;
+
+-- T3. When an order is cancelled: put the product back on sale and notify seller.
+CREATE TRIGGER trg_order_cancelled
+AFTER UPDATE OF status ON orders
+WHEN NEW.status = 'cancelled' AND OLD.status = 'placed'
+BEGIN
+    UPDATE products SET status = 'available' WHERE product_id = NEW.product_id;
+
+    INSERT INTO notifications (user_id, message)
+    SELECT p.seller_id, 'Order for "' || p.title || '" was cancelled. It is listed again.'
+    FROM products p WHERE p.product_id = NEW.product_id;
+END;
+
+-- T4. When a product is sold: tell everyone who had it in their wishlist.
+CREATE TRIGGER trg_wishlist_sold_alert
+AFTER UPDATE OF status ON products
+WHEN NEW.status = 'sold' AND OLD.status = 'available'
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    SELECT w.user_id, 'An item in your wishlist, "' || NEW.title || '", has been sold.'
+    FROM wishlist w
+    WHERE w.product_id = NEW.product_id
+      AND w.user_id <> (SELECT buyer_id FROM orders
+                        WHERE product_id = NEW.product_id ORDER BY order_id DESC LIMIT 1);
+END;
+
+-- T5. When the AI flags a new listing: alert every admin.
+CREATE TRIGGER trg_flagged_listing
+AFTER INSERT ON products
+WHEN NEW.is_flagged = 1
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    SELECT user_id, 'AI flagged a suspicious listing: "' || NEW.title || '". Please review.'
+    FROM users WHERE role = 'admin';
+END;
+
+-- T6. When an admin approves/rejects a listing: notify the seller.
+CREATE TRIGGER trg_listing_moderated
+AFTER UPDATE OF status ON products
+WHEN OLD.status = 'pending' AND NEW.status IN ('available', 'rejected')
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    VALUES (NEW.seller_id,
+            CASE NEW.status
+                WHEN 'available' THEN 'Your listing "' || NEW.title || '" was approved and is now live.'
+                ELSE 'Your listing "' || NEW.title || '" was rejected by the admin.'
+            END);
+END;
+
+-- =====================================================================
+--  VIEWS : reusable read-only queries
+-- =====================================================================
+
+-- Average rating of every seller (via orders -> reviews).
+CREATE VIEW v_seller_ratings AS
+SELECT p.seller_id,
+       ROUND(AVG(r.rating), 1) AS avg_rating,
+       COUNT(r.review_id)      AS review_count
+FROM reviews r
+JOIN orders   o ON o.order_id   = r.order_id
+JOIN products p ON p.product_id = o.product_id
+GROUP BY p.seller_id;
+
+-- Product joined with its category, seller and seller rating.
+CREATE VIEW v_product_details AS
+SELECT p.*,
+       c.name  AS category_name,
+       c.icon  AS category_icon,
+       u.name  AS seller_name,
+       u.branch AS seller_branch,
+       u.year  AS seller_year,
+       COALESCE(sr.avg_rating, 0)   AS seller_rating,
+       COALESCE(sr.review_count, 0) AS seller_reviews
+FROM products p
+JOIN categories c ON c.category_id = p.category_id
+JOIN users u      ON u.user_id     = p.seller_id
+LEFT JOIN v_seller_ratings sr ON sr.seller_id = p.seller_id;
+
+-- Items sold and revenue per category (used in admin dashboard).
+CREATE VIEW v_category_sales AS
+SELECT c.category_id, c.name, c.icon,
+       COUNT(o.order_id)          AS items_sold,
+       COALESCE(SUM(o.price), 0)  AS revenue
+FROM categories c
+LEFT JOIN products p ON p.category_id = c.category_id
+LEFT JOIN orders   o ON o.product_id  = p.product_id AND o.status <> 'cancelled'
+GROUP BY c.category_id;
+
+-- One-row summary for the admin dashboard.
+CREATE VIEW v_admin_stats AS
+SELECT
+    (SELECT COUNT(*) FROM users WHERE role = 'user')                     AS total_users,
+    (SELECT COUNT(*) FROM products WHERE status = 'available')           AS live_listings,
+    (SELECT COUNT(*) FROM products WHERE status = 'pending')             AS pending_listings,
+    (SELECT COUNT(*) FROM orders WHERE status <> 'cancelled')            AS total_orders,
+    (SELECT COALESCE(SUM(price), 0) FROM orders WHERE status <> 'cancelled') AS total_sales,
+    (SELECT COUNT(*) FROM search_history)                                AS total_searches;

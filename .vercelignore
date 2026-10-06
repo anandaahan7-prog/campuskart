@@ -1,0 +1,5 @@
+report/
+test_app.py
+__pycache__/
+*.pyc
+README.md

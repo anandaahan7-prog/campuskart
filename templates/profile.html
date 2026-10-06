@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+<div class="two-col">
+  <div>
+    <div class="card">
+      <div class="seller-box" style="margin-bottom:16px">
+        <span class="avatar" style="width:56px;height:56px;font-size:1.4rem">{{ g.user.name[0] }}</span>
+        <div>
+          <h1 style="margin:0">{{ g.user.name }}</h1>
+          <span class="muted">{{ g.user.email }}</span>
+          {% if g.user.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}
+        </div>
+      </div>
+      {% if g.user.role == 'user' %}
+      <div class="stats" style="margin-bottom:16px">
+        <div class="stat"><div class="label">Listed</div><div class="value">{{ stats.listed }}</div></div>
+        <div class="stat"><div class="label">Sold</div><div class="value">{{ stats.sold }}</div></div>
+        <div class="stat"><div class="label">Bought</div><div class="value">{{ stats.bought }}</div></div>
+        <div class="stat"><div class="label">Earned</div><div class="value">₹{{ stats.earned|inr }}</div></div>
+      </div>
+      <p>Seller rating:
+        {% if rating %}{{ stars(rating.avg_rating) }} {{ rating.avg_rating }} ({{ rating.review_count }} reviews)
+        {% else %}<span class="muted">no reviews yet</span>{% endif %}</p>
+      {% endif %}
+      <form method="post">
+        <h2>Edit profile</h2>
+        <div class="field"><label>Name</label><input name="name" value="{{ g.user.name }}" required></div>
+        <div class="row">
+          <div class="field"><label>Branch</label><input name="branch" value="{{ g.user.branch or '' }}"></div>
+          <div class="field"><label>Year</label>
+            <select name="year">{% for y in range(1, 5) %}<option {% if g.user.year == y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field"><label>Phone</label><input name="phone" value="{{ g.user.phone or '' }}"></div>
+        <button class="btn">Save</button>
+      </form>
+    </div>
+  </div>
+
+  {% if g.user.role == 'user' %}
+  <div class="card">
+    <div class="section-head">
+      <h2>🕑 Search history</h2>
+      {% if searches %}
+      <form method="post" action="{{ url_for('clear_search_history') }}"><button class="btn btn-outline btn-sm">Clear all</button></form>
+      {% endif %}
+    </div>
+    <p class="small muted">The AI recommender uses this history. You control it: clearing it resets your recommendations.</p>
+    {% for s in searches %}
+    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)">
+      <a href="{{ url_for('search', q=s.query) }}">🔍 {{ s.query }}</a>
+      <span class="small muted">{{ s.searched_at|ago }}</span>
+    </div>
+    {% else %}
+    <div class="empty">No searches yet.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Database explorer{% endblock %}
+{% block content %}
+<h1>🗄️ Database explorer</h1>
+{% include "admin/_nav.html" %}
+
+<div class="card">
+  <h2>Run a SQL query</h2>
+  <p class="small muted">Read-only connection: only SELECT / WITH queries are allowed, up to 200 rows.</p>
+  <form method="post">
+    <textarea class="code" name="sql" id="sql">{{ sql }}</textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+      <button class="btn">▶ Run query</button>
+      <span class="small muted">Examples:</span>
+      {% for label, ex in [
+        ('Seller ratings (view)', 'SELECT * FROM v_seller_ratings ORDER BY avg_rating DESC;'),
+        ('Category sales (view)', 'SELECT * FROM v_category_sales;'),
+        ('Searches per user (JOIN + GROUP BY)', 'SELECT u.name, COUNT(s.search_id) AS searches\nFROM users u LEFT JOIN search_history s ON s.user_id = u.user_id\nWHERE u.role = \'user\'\nGROUP BY u.user_id ORDER BY searches DESC;'),
+        ('Most wishlisted (subquery)', 'SELECT title, price,\n  (SELECT COUNT(*) FROM wishlist w WHERE w.product_id = p.product_id) AS wishes\nFROM products p ORDER BY wishes DESC LIMIT 10;'),
+        ('Avg price by condition', 'SELECT condition, COUNT(*) AS items,\n  ROUND(AVG(price * 100.0 / original_price)) AS avg_percent_of_mrp\nFROM products WHERE status IN (\'available\', \'sold\')\nGROUP BY condition;'),
+        ('Notifications by triggers', 'SELECT u.name, n.message, n.created_at\nFROM notifications n JOIN users u ON u.user_id = n.user_id\nWHERE n.message NOT LIKE \'Welcome%\'\nORDER BY n.notif_id DESC;')] %}
+      <button type="button" class="chip" onclick='document.getElementById("sql").value = {{ ex|tojson }}'>{{ label }}</button>
+      {% endfor %}
+    </div>
+  </form>
+
+  {% if error %}<div class="flash flash-danger" style="margin-top:14px">{{ error }}</div>{% endif %}
+  {% if columns %}
+  <div class="table-wrap" style="margin-top:14px;max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px">
+    <table>
+      <tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr>
+      {% for r in rows %}<tr>{% for v in r %}<td class="small">{{ v if v is not none else 'NULL' }}</td>{% endfor %}</tr>{% endfor %}
+    </table>
+  </div>
+  <p class="small muted">{{ rows|length }} row(s)</p>
+  {% endif %}
+</div>
+
+<div class="two-col section">
+  <div class="card">
+    <h2>Tables</h2>
+    {% for o in objects if o.type == 'table' %}
+    <details class="schema-obj">
+      <summary>📋 {{ o.name }} <span class="pill">{{ counts[o.name] }} rows</span></summary>
+      <pre class="sql">{{ o.sql }}</pre>
+    </details>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <h2>Views, triggers & indexes</h2>
+    {% for o in objects if o.type != 'table' %}
+    <details class="schema-obj">
+      <summary>{{ {'view': '👁', 'trigger': '⚡', 'index': '🔑'}[o.type] }} {{ o.name }}
+        <span class="pill {{ 'pill-ai' if o.type == 'trigger' else 'pill-brand' }}">{{ o.type }}</span>
+        {% if o.type != 'view' %}<span class="small muted">on {{ o.tbl_name }}</span>{% endif %}</summary>
+      <pre class="sql">{{ o.sql }}</pre>
+    </details>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

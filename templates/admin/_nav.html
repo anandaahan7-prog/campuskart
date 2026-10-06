@@ -1,0 +1,7 @@
+<div class="admin-nav">
+  {% for ep, label in [('admin_dashboard', '📊 Dashboard'), ('admin_listings', '📦 Listings'),
+                       ('admin_users', '👥 Users'), ('admin_orders', '🧾 Orders'),
+                       ('admin_database', '🗄️ Database explorer')] %}
+  <a class="btn btn-sm {{ '' if request.endpoint == ep else 'btn-outline' }}" href="{{ url_for(ep) }}">{{ label }}</a>
+  {% endfor %}
+</div>

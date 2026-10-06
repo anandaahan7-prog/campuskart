@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import product_card %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<form class="card filters" method="get">
+  <div><label>Search</label><input name="q" value="{{ q }}" placeholder="e.g. calculator"></div>
+  <div><label>Category</label>
+    <select name="category">
+      <option value="">All</option>
+      {% for c in categories %}<option value="{{ c.category_id }}" {% if category == c.category_id %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div><label>Condition</label>
+    <select name="condition">
+      <option value="">Any</option>
+      {% for c in conditions %}<option {% if condition == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+  </div>
+  <div><label>Max price (₹)</label><input name="max_price" type="number" min="0" value="{{ max_price|int if max_price else '' }}"></div>
+  <div><label>Sort by</label>
+    <select name="sort">
+      {% for v, l in [('newest', 'Newest'), ('price_low', 'Price: low to high'), ('price_high', 'Price: high to low'), ('rating', 'Seller rating')] %}
+      <option value="{{ v }}" {% if sort == v %}selected{% endif %}>{{ l }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn">Apply</button>
+</form>
+
+<div class="section">
+  <div class="section-head">
+    <h2>{% if q %}Results for “{{ q }}”{% else %}All items{% endif %}</h2>
+    <span class="muted">{{ results|length }} found</span>
+  </div>
+  {% if q and g.user and g.user.role == 'user' %}
+  <p class="small muted" style="margin-top:-8px">✨ This search was saved to your history and will improve your recommendations.</p>
+  {% endif %}
+
+  {% if results %}
+    <div class="grid">{% for p in results %}{{ product_card(p) }}{% endfor %}</div>
+  {% else %}
+    <div class="card empty"><div class="emoji">🔍</div>No exact matches found.</div>
+    {% if ai_suggestions %}
+    <div class="section">
+      <div class="ai-banner" style="margin-bottom:14px">
+        <span class="ai-icon">AI</span> Did you mean one of these? (smart search handles typos and partial words)
+      </div>
+      <div class="grid">{% for p in ai_suggestions %}{{ product_card(p) }}{% endfor %}</div>
+    </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill %}
+{% block title %}Manage listings{% endblock %}
+{% block content %}
+<h1>Listings</h1>
+{% include "admin/_nav.html" %}
+
+<div class="card section" style="margin-top:0">
+  <div class="section-head">
+    <h2>⚠️ Flagged by AI ({{ pending|length }})</h2>
+    <span class="pill pill-ai">Naive Bayes spam detector</span>
+  </div>
+  {% if pending %}
+  <div class="table-wrap">
+    <table>
+      <tr><th>Listing</th><th>Seller</th><th>Price / MRP</th><th>Spam score</th><th>Why flagged</th><th>Action</th></tr>
+      {% for p in pending %}
+      <tr>
+        <td><a href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a><br><span class="small muted">{{ p.description[:90] }}…</span></td>
+        <td>{{ p.seller_name }}</td>
+        <td>₹{{ p.price|inr }} / ₹{{ p.original_price|inr }}</td>
+        <td><span class="pill pill-bad">{{ (p.spam_score * 100)|round|int }}%</span></td>
+        <td class="small">{{ (p.flag_reason or '')|replace('; ', '<br>')|safe }}</td>
+        <td style="white-space:nowrap">
+          <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='approve') }}">
+            <button class="btn btn-good btn-sm">Approve</button></form>
+          <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='reject') }}">
+            <button class="btn btn-danger btn-sm">Reject</button></form>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">Nothing to review. 🎉</p>
+  {% endif %}
+</div>
+
+<div class="section">
+  <div class="tabs">
+    {% for s in ['available', 'sold', 'rejected', 'removed'] %}
+    <a href="{{ url_for('admin_listings', status=s) }}" class="{{ 'active' if status == s }}">{{ s|capitalize }}</a>
+    {% endfor %}
+  </div>
+  <div class="card table-wrap" style="padding:0">
+    <table>
+      <tr><th>ID</th><th>Listing</th><th>Category</th><th>Seller</th><th>Price</th><th>Status</th><th>Listed</th><th></th></tr>
+      {% for p in listings %}
+      <tr>
+        <td>{{ p.product_id }}</td>
+        <td><a href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a></td>
+        <td>{{ p.category_icon }} {{ p.category_name }}</td>
+        <td>{{ p.seller_name }}</td>
+        <td>₹{{ p.price|inr }}</td>
+        <td>{{ status_pill(p.status) }}</td>
+        <td class="small muted">{{ p.created_at|ago }}</td>
+        <td>{% if p.status == 'available' %}
+          <form method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='remove') }}" onsubmit="return confirm('Remove this listing?')">
+            <button class="btn btn-outline btn-sm">Remove</button></form>{% endif %}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="empty">No listings.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

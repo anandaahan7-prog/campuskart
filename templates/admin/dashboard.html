@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill, stars %}
+{% block title %}Admin dashboard{% endblock %}
+{% block content %}
+<h1>Admin dashboard</h1>
+{% include "admin/_nav.html" %}
+
+{% if stats.pending_listings %}
+<div class="flash flash-warning">
+  ⚠️ <strong>{{ stats.pending_listings }} listing(s)</strong> were flagged by the AI spam detector and need review.
+  <a href="{{ url_for('admin_listings') }}">Review now →</a>
+</div>
+{% endif %}
+
+<div class="stats">
+  <div class="stat"><div class="label">Students</div><div class="value">{{ stats.total_users }}</div></div>
+  <div class="stat"><div class="label">Live listings</div><div class="value">{{ stats.live_listings }}</div></div>
+  <div class="stat"><div class="label">Pending review</div><div class="value" style="color:var(--warn)">{{ stats.pending_listings }}</div></div>
+  <div class="stat"><div class="label">Orders</div><div class="value">{{ stats.total_orders }}</div></div>
+  <div class="stat"><div class="label">Total sales</div><div class="value">₹{{ stats.total_sales|inr }}</div></div>
+  <div class="stat"><div class="label">Searches</div><div class="value">{{ stats.total_searches }}</div></div>
+</div>
+<p class="small muted">Stats come from the view <code>v_admin_stats</code>.</p>
+
+<div class="two-col section">
+  <div class="card">
+    <h2>Sales by category</h2>
+    <p class="small muted">From view <code>v_category_sales</code> (LEFT JOIN + GROUP BY)</p>
+    {% for c in cat_sales %}
+    <div class="bar-row">
+      <span>{{ c.icon }} {{ c.name }}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:{{ (c.revenue / max_rev * 100)|round }}%"></div></div>
+      <span class="small">₹{{ c.revenue|inr }} · {{ c.items_sold }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2>🔍 What students search for</h2>
+    <p class="small muted">Top queries from <code>search_history</code>. Shows what is in demand on campus.</p>
+    <table>
+      {% for s in top_searches %}
+      <tr><td>{{ s.query }}</td><td style="text-align:right"><span class="pill pill-brand">{{ s.n }}×</span></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="two-col section">
+  <div class="card table-wrap">
+    <h2>Recent orders</h2>
+    <table>
+      <tr><th>Item</th><th>Buyer</th><th>Price</th><th>Status</th></tr>
+      {% for o in recent_orders %}
+      <tr><td>{{ o.title }}</td><td>{{ o.buyer_name }}</td><td>₹{{ o.price|inr }}</td><td>{{ status_pill(o.status) }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="card">
+    <h2>⭐ Top rated sellers</h2>
+    <table>
+      {% for s in top_sellers %}
+      <tr><td>{{ s.name }}<br><span class="small muted">{{ s.branch }}</span></td>
+          <td style="text-align:right">{{ stars(s.avg_rating) }}<br><span class="small muted">{{ s.avg_rating }} · {{ s.review_count }} reviews</span></td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}

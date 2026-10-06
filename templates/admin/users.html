@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Manage users{% endblock %}
+{% block content %}
+<h1>Users</h1>
+{% include "admin/_nav.html" %}
+<div class="card table-wrap" style="padding:0">
+  <table>
+    <tr><th>ID</th><th>Name</th><th>Email</th><th>Branch / Year</th><th>Listings</th><th>Purchases</th><th>Searches</th><th>Rating</th><th>Status</th><th></th></tr>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.user_id }}</td>
+      <td>{{ u.name }} {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}</td>
+      <td class="small">{{ u.email }}</td>
+      <td class="small">{{ u.branch or '-' }}{% if u.year %} · {{ u.year }}{% endif %}</td>
+      <td>{{ u.listings }}</td>
+      <td>{{ u.purchases }}</td>
+      <td>{{ u.searches }}</td>
+      <td>{{ '★ %.1f'|format(u.rating) if u.rating else '-' }}</td>
+      <td>{% if u.is_blocked %}<span class="pill pill-bad">Blocked</span>{% else %}<span class="pill pill-good">Active</span>{% endif %}</td>
+      <td>{% if u.role == 'user' %}
+        <form method="post" action="{{ url_for('admin_toggle_block', uid=u.user_id) }}">
+          <button class="btn btn-sm {{ 'btn-good' if u.is_blocked else 'btn-danger' }}">{{ 'Unblock' if u.is_blocked else 'Block' }}</button>
+        </form>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

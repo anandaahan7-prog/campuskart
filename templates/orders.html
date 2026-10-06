@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill, stars %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<h1>Orders</h1>
+<div class="tabs">
+  <a href="{{ url_for('orders', tab='purchases') }}" class="{{ 'active' if tab == 'purchases' }}">🛍️ Purchases ({{ purchases|length }})</a>
+  <a href="{{ url_for('orders', tab='sales') }}" class="{{ 'active' if tab == 'sales' }}">💰 Sales ({{ sales|length }})</a>
+</div>
+
+{% if tab == 'purchases' %}
+  {% if purchases %}
+  <div class="card table-wrap" style="padding:0">
+    <table>
+      <tr><th>#</th><th>Item</th><th>Seller</th><th>Price</th><th>Status</th><th>Date</th><th>Action</th></tr>
+      {% for o in purchases %}
+      <tr>
+        <td>{{ o.order_id }}</td>
+        <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.category_icon }} {{ o.title }}</a></td>
+        <td>{{ o.seller_name }}{% if o.status == 'placed' %}<br><span class="small muted">📞 {{ o.seller_phone }}</span>{% endif %}</td>
+        <td>₹{{ o.price|inr }}</td>
+        <td>{{ status_pill(o.status) }}</td>
+        <td class="small muted">{{ o.ordered_at|ago }}</td>
+        <td>
+          {% if o.status == 'placed' %}
+            <form class="inline" method="post" action="{{ url_for('complete_order', oid=o.order_id) }}">
+              <button class="btn btn-good btn-sm">Mark received</button></form>
+            <form class="inline" method="post" action="{{ url_for('cancel_order', oid=o.order_id) }}" onsubmit="return confirm('Cancel this order?')">
+              <button class="btn btn-outline btn-sm">Cancel</button></form>
+          {% elif o.status == 'completed' and o.rating %}
+            {{ stars(o.rating) }}
+          {% elif o.status == 'completed' %}
+            <form method="post" action="{{ url_for('review_order', oid=o.order_id) }}" style="display:flex;gap:6px;flex-wrap:wrap">
+              <select name="rating" style="width:auto;padding:5px">
+                {% for r in range(5, 0, -1) %}<option value="{{ r }}">{{ '★' * r }}</option>{% endfor %}
+              </select>
+              <input name="comment" placeholder="Comment" style="width:140px;padding:5px 8px">
+              <button class="btn btn-sm">Rate</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty"><div class="emoji">🛍️</div>No purchases yet. <a href="{{ url_for('search') }}">Browse items</a></div>
+  {% endif %}
+{% else %}
+  {% if sales %}
+  <div class="card table-wrap" style="padding:0">
+    <table>
+      <tr><th>#</th><th>Item</th><th>Buyer</th><th>Price</th><th>Status</th><th>Rating</th><th>Date</th></tr>
+      {% for o in sales %}
+      <tr>
+        <td>{{ o.order_id }}</td>
+        <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.category_icon }} {{ o.title }}</a></td>
+        <td>{{ o.buyer_name }}{% if o.status == 'placed' %}<br><span class="small muted">📞 {{ o.buyer_phone }}</span>{% endif %}</td>
+        <td>₹{{ o.price|inr }}</td>
+        <td>{{ status_pill(o.status) }}</td>
+        <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}<span class="muted small">-</span>{% endif %}</td>
+        <td class="small muted">{{ o.ordered_at|ago }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% else %}
+  <div class="card empty"><div class="emoji">💰</div>No sales yet.</div>
+  {% endif %}
+{% endif %}
+{% endblock %}

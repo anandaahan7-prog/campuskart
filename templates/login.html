@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card">
+    <h1>Login</h1>
+    <p class="muted">Welcome back to CampusKart.</p>
+    <form method="post">
+      <div class="field"><label>Email</label><input name="email" id="email" type="email" required></div>
+      <div class="field"><label>Password</label><input name="password" id="password" type="password" required></div>
+      <button class="btn btn-block btn-lg">Login</button>
+    </form>
+    <p class="small muted" style="margin-top:14px">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+  </div>
+
+  <div class="card">
+    <h2>🎓 Demo accounts</h2>
+    <p class="muted small">Click an account to fill the login form. Each student has a different search
+      history, so the AI recommends different items to each one.</p>
+    {% set notes = {
+      'admin@campuskart.com': 'Dashboard, flagged listings, users, SQL explorer',
+      'rahul@college.edu': 'Searched: dbms book, python, laptop…',
+      'priya@college.edu': 'Searched: engineering drawing, drafter, calculator…',
+      'karan@college.edu': 'Searched: arduino, multimeter, raspberry pi…',
+      'aisha@college.edu': 'Searched: cycle, mattress, kettle…',
+      'neha@college.edu': 'New user, no history (cold start → trending)'} %}
+    {% for u in demo_users %}
+    <button type="button" class="demo-user"
+            onclick="fillLogin('{{ u.email }}', '{{ 'admin123' if u.role == 'admin' else 'demo123' }}')">
+      <span class="avatar">{{ u.name[0] }}</span>
+      <span>
+        <strong>{{ u.name }}</strong>
+        {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% else %}<span class="pill pill-brand">{{ u.branch }}</span>{% endif %}
+        <br><span class="muted small">{{ notes.get(u.email, '') }}</span>
+      </span>
+    </button>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  function fillLogin(email, pw) {
+    document.getElementById('email').value = email;
+    document.getElementById('password').value = pw;
+    document.getElementById('email').form.submit();
+  }
+</script>
+{% endblock %}

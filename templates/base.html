@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}CampusKart{% endblock %} · CampusKart</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+</head>
+<body>
+<nav class="navbar">
+  <div class="container">
+    <a class="logo" href="{{ url_for('index') }}">🛒 Campus<span>Kart</span></a>
+    {% if not g.user or g.user.role != 'admin' %}
+    <form class="nav-search" action="{{ url_for('search') }}">
+      <input name="q" placeholder="Search books, calculators, cycles..." value="{{ q or '' }}">
+      <button class="btn">Search</button>
+    </form>
+    {% endif %}
+    <div class="nav-links">
+      {% if g.user %}
+        {% if g.user.role == 'admin' %}
+          <a href="{{ url_for('admin_dashboard') }}">📊 Dashboard</a>
+          <a href="{{ url_for('admin_listings') }}">📦 Listings</a>
+          <a href="{{ url_for('admin_users') }}">👥 Users</a>
+          <a href="{{ url_for('admin_database') }}">🗄️ Database</a>
+        {% else %}
+          <a href="{{ url_for('sell') }}">➕ Sell</a>
+          <a href="{{ url_for('my_listings') }}">My Listings</a>
+          <a href="{{ url_for('orders') }}">Orders</a>
+          <a href="{{ url_for('wishlist') }}">❤ Wishlist</a>
+        {% endif %}
+        <a href="{{ url_for('notifications') }}">🔔{% if unread_count %}<span class="badge-dot">{{ unread_count }}</span>{% endif %}</a>
+        <a href="{{ url_for('profile') }}">👤 {{ g.user.name.split()[0] }}</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+        <a class="btn btn-sm" href="{{ url_for('register') }}">Sign up</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer>CampusKart · AI-powered student marketplace · DBMS Project</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

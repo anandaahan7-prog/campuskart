@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Notifications{% endblock %}
+{% block content %}
+<h1>🔔 Notifications</h1>
+<p class="muted">Most of these are created automatically by database triggers.</p>
+<div class="card">
+  {% for n in items %}
+  <div class="notif {{ 'unread' if not n.is_read }}">
+    <span>{{ '🆕' if not n.is_read else '•' }}</span>
+    <div>{{ n.message }}<br><span class="small muted">{{ n.created_at|ago }}</span></div>
+  </div>
+  {% else %}
+  <div class="empty">No notifications.</div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% from "_macros.html" import product_card %}
+{% block title %}Home{% endblock %}
+{% block content %}
+
+{% if not g.user %}
+<div class="hero">
+  <div>
+    <h1>Buy & sell within your campus</h1>
+    <p>Second-hand books, calculators, lab coats, cycles and hostel essentials from your seniors,
+       with AI recommendations, fair-price suggestions and spam protection.</p>
+    <a class="btn btn-lg" href="{{ url_for('register') }}">Get started</a>
+    <a class="btn btn-lg btn-ghost" href="{{ url_for('login') }}">Login</a>
+  </div>
+  <div class="hero-emoji">📚🧮🚲</div>
+</div>
+{% else %}
+<h1>Hi {{ g.user.name.split()[0] }} 👋</h1>
+<p class="muted">{{ g.user.branch }}{% if g.user.year %} · Year {{ g.user.year }}{% endif %}</p>
+{% endif %}
+
+{% if recent_searches %}
+<div class="section" style="margin-top:18px">
+  <div class="section-head">
+    <h3>🕑 Your recent searches</h3>
+    <form method="post" action="{{ url_for('clear_search_history') }}" class="inline">
+      <button class="btn btn-outline btn-sm">Clear history</button>
+    </form>
+  </div>
+  <div class="chips">
+    {% for s in recent_searches %}<a class="chip" href="{{ url_for('search', q=s.query) }}">{{ s.query }}</a>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="section">
+  <div class="section-head">
+    <h2>{% if personalised %}✨ Recommended for you{% else %}🔥 Trending on campus{% endif %}</h2>
+  </div>
+  {% if personalised %}
+  <div class="ai-banner" style="margin-bottom:14px">
+    <span class="ai-icon">AI</span>
+    Picked using your search history, viewed items and wishlist (TF-IDF + cosine similarity).
+  </div>
+  {% elif g.user and g.user.role == 'user' %}
+  <div class="ai-banner" style="margin-bottom:14px">
+    <span class="ai-icon">AI</span>
+    No history yet, so these are the most viewed items. Search or browse a few items and your feed becomes personalised.
+  </div>
+  {% endif %}
+  <div class="grid">
+    {% for r in recs %}{{ product_card(r.product, r.reason if personalised else None) }}{% endfor %}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head"><h2>Shop by category</h2></div>
+  <div class="cat-grid">
+    {% for c in categories %}
+    <a class="cat-tile" href="{{ url_for('search', category=c.category_id) }}">
+      <span class="emoji">{{ c.icon }}</span>{{ c.name }}
+      <div class="count">{{ cat_counts.get(c.category_id, 0) }} items</div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-head">
+    <h2>🆕 Just listed</h2>
+    <a href="{{ url_for('search') }}">View all →</a>
+  </div>
+  <div class="grid">
+    {% for p in latest %}{{ product_card(p) }}{% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_pill, stars %}
+{% block title %}All orders{% endblock %}
+{% block content %}
+<h1>All orders</h1>
+{% include "admin/_nav.html" %}
+<div class="card table-wrap" style="padding:0">
+  <table>
+    <tr><th>#</th><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Status</th><th>Rating</th><th>Date</th></tr>
+    {% for o in orders %}
+    <tr>
+      <td>{{ o.order_id }}</td>
+      <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.title }}</a></td>
+      <td>{{ o.buyer_name }}</td>
+      <td>{{ o.seller_name }}</td>
+      <td>₹{{ o.price|inr }}</td>
+      <td>{{ status_pill(o.status) }}</td>
+      <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}-{% endif %}</td>
+      <td class="small muted">{{ o.ordered_at }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

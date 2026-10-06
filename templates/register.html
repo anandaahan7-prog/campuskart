@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px;margin:0 auto">
+  <h1>Create account</h1>
+  <p class="muted">Join your campus marketplace.</p>
+  <form method="post">
+    <div class="field"><label>Full name</label><input name="name" required value="{{ form.name or '' }}"></div>
+    <div class="field"><label>College email</label><input name="email" type="email" required value="{{ form.email or '' }}"></div>
+    <div class="row">
+      <div class="field"><label>Branch</label>
+        <select name="branch" required>
+          {% for b in ['Computer Science', 'Information Technology', 'Electronics', 'Mechanical', 'Civil', 'Electrical', 'Chemical'] %}
+          <option {% if form.branch == b %}selected{% endif %}>{{ b }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Year</label>
+        <select name="year">{% for y in range(1, 5) %}<option value="{{ y }}">{{ y }}</option>{% endfor %}</select>
+      </div>
+    </div>
+    <div class="field"><label>Phone (shared with buyer/seller after an order)</label>
+      <input name="phone" pattern="[0-9]{10}" title="10 digit number" required value="{{ form.phone or '' }}"></div>
+    <div class="field"><label>Password (min 6 characters)</label><input name="password" type="password" minlength="6" required></div>
+    <button class="btn btn-block btn-lg">Create account</button>
+  </form>
+  <p class="small muted" style="margin-top:14px">Already have an account? <a href="{{ url_for('login') }}">Login</a></p>
+</div>
+{% endblock %}

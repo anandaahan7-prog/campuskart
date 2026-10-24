@@ -10,7 +10,7 @@
 <div class="grid">
   {% for p in items %}
   <div>
-    {{ product_card(p) }}
+    {{ product_card(p, None, loop.index0) }}
     <div class="between mt-2">
       {{ status_pill(p.status) }}
       <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">

@@ -15,12 +15,16 @@
 {% endif %}
 
 <div class="stats">
-  <div class="stat"><div class="label">Students</div><div class="value">{{ stats.total_users }}</div></div>
-  <div class="stat"><div class="label">Live listings</div><div class="value">{{ stats.live_listings }}</div></div>
-  <div class="stat stat-warn"><div class="label">Waiting for review</div><div class="value">{{ stats.pending_listings }}</div></div>
-  <div class="stat"><div class="label">Orders</div><div class="value">{{ stats.total_orders }}</div></div>
-  <div class="stat"><div class="label">Total sales</div><div class="value">₹{{ stats.total_sales|inr }}</div></div>
-  <div class="stat"><div class="label">Searches</div><div class="value">{{ stats.total_searches }}</div></div>
+  {% for label, val, ic, hue, prefix, extra in [
+       ('Students', stats.total_users, 'users', 7, '', ''), ('Live listings', stats.live_listings, 'package', 5, '', ''),
+       ('Waiting for review', stats.pending_listings, 'alert', 1, '', 'stat-warn'), ('Orders', stats.total_orders, 'receipt', 2, '', ''),
+       ('Total sales', stats.total_sales|int, 'chart', 6, '₹', ''), ('Searches', stats.total_searches, 'search', 9, '', '')] %}
+  <div class="stat reveal cat-{{ hue }} {{ extra }}" style="--i: {{ loop.index0 }}">
+    <span class="stat-icon">{{ icon(ic, 18) }}</span>
+    <div class="label">{{ label }}</div>
+    <div class="value" data-count="{{ val }}" data-prefix="{{ prefix }}">{{ prefix }}{{ val|inr }}</div>
+  </div>
+  {% endfor %}
 </div>
 <p class="xs muted mt-2">Figures come from the view <code>v_admin_stats</code>.</p>
 

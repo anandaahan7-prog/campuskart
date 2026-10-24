@@ -1,17 +1,18 @@
 {% extends "base.html" %}
-{% from "_macros.html" import product_card, icon, ai_badge %}
+{% from "_macros.html" import product_card, icon, ai_badge, cat_picture, art_url %}
 {% block title %}Home{% endblock %}
 {% block content %}
 
 {% if not g.user %}
 <section class="hero" aria-labelledby="hero-title">
   <div>
-    <h1 id="hero-title">Your seniors' books, calculators and cycles, a few steps away</h1>
-    <p>Buy and sell second-hand items within your campus. Personalised picks, fair-price suggestions
-       and spam checks are built in.</p>
+    <span class="eyebrow">{{ icon('leaf', 14) }}Campus-only marketplace</span>
+    <h1 id="hero-title">Give your stuff a <em>second semester</em></h1>
+    <p>Buy your seniors' books, calculators and cycles for a fraction of the price, and sell yours
+       when you're done. Personal picks, fair-price hints and spam checks are built in.</p>
     <div class="cluster">
-      <a class="btn btn-lg" href="{{ url_for('register') }}">Create free account</a>
-      <a class="btn btn-lg btn-ghost" href="{{ url_for('login') }}">Log in</a>
+      <a class="btn btn-lg btn-accent" href="{{ url_for('register') }}">Create free account</a>
+      <a class="btn btn-lg" href="{{ url_for('login') }}">Log in</a>
     </div>
     <div class="hero-stats">
       <span><strong>{{ cat_counts.values()|sum }}</strong>items for sale</span>
@@ -19,45 +20,60 @@
       <span><strong>3</strong>AI features</span>
     </div>
   </div>
-  <div class="hero-tiles" aria-hidden="true">
-    {% for c in categories[:6] %}<div class="hero-tile">{{ c.icon }}</div>{% endfor %}
+  <div class="hero-visual" aria-hidden="true">
+    <img class="float-item" src="{{ art_url('books') }}" alt="" style="--size:132px; left:8%; top:4%; --r:-6deg">
+    <img class="float-item" src="{{ art_url('abacus') }}" alt="" style="--size:96px; right:6%; top:10%; --r:8deg; --delay:-2s">
+    <img class="float-item" src="{{ art_url('bicycle') }}" alt="" style="--size:150px; right:2%; bottom:6%; --r:-4deg; --delay:-4s">
+    <img class="float-item" src="{{ art_url('cap') }}" alt="" style="--size:84px; left:44%; top:26%; --r:10deg; --delay:-1s">
+    <div class="glass-card">
+      <div class="row-1"><span>Casio fx-991ES</span>{{ ai_badge() }}</div>
+      <div class="t">Fair price: great deal</div>
+      <div class="p">₹650<s>₹1,150</s></div>
+    </div>
   </div>
 </section>
 {% else %}
-<div class="greeting">
+<section class="welcome" aria-labelledby="welcome-title">
   <div>
-    <h1>Hi {{ g.user.name.split()[0] }}</h1>
-    <p>{{ g.user.branch }}{% if g.user.year %} · Year {{ g.user.year }}{% endif %}</p>
-  </div>
-</div>
-{% endif %}
-
-{% if recent_searches %}
-<section class="section" aria-labelledby="recent-title">
-  <div class="section-head">
-    <h2 id="recent-title" class="title-icon h3">{{ icon('clock', 18) }}Your recent searches</h2>
-    <form method="post" action="{{ url_for('clear_search_history') }}" class="inline">
-      <button class="btn btn-ghost btn-sm">Clear history</button>
+    <span class="eyebrow">{{ g.user.branch }}{% if g.user.year %} · Year {{ g.user.year }}{% endif %}</span>
+    <h1 id="welcome-title">Hi {{ g.user.name.split()[0] }}, welcome back</h1>
+    <p class="sub">
+      {% if personalised %}We picked {{ recs|length }} items for you from your recent activity.
+      {% else %}Search for something you need and your picks will start matching your interests.{% endif %}
+    </p>
+    {% if recent_searches %}
+    <div class="chips" aria-label="Your recent searches">
+      {% for s in recent_searches %}
+      <a class="chip" href="{{ url_for('search', q=s.query) }}">{{ icon('clock', 14) }}{{ s.query }}</a>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('clear_search_history') }}" class="mt-3">
+      <button class="btn btn-ghost btn-sm">Clear search history</button>
     </form>
+    {% else %}
+    <div class="chips">
+      {% for s in ['dbms book', 'calculator', 'cycle', 'lab coat'] %}
+      <a class="chip" href="{{ url_for('search', q=s) }}">{{ icon('search', 14) }}{{ s }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
-  <div class="chips">
-    {% for s in recent_searches %}
-    <a class="chip" href="{{ url_for('search', q=s.query) }}">{{ icon('search', 14) }}{{ s.query }}</a>
-    {% endfor %}
-  </div>
+  <img class="welcome-art" src="{{ art_url('cap') }}" alt="" width="120" height="120" aria-hidden="true">
 </section>
 {% endif %}
 
 <section class="section" aria-labelledby="recs-title">
   <div class="section-head">
-    <h2 id="recs-title" class="title-icon">
-      {% if personalised %}{{ icon('sparkles', 20) }}Recommended for you{% else %}{{ icon('flame', 20) }}Trending on campus{% endif %}
-    </h2>
+    <div>
+      {% if personalised %}<span class="eyebrow ai">{{ icon('sparkles', 14) }}AI picks</span>
+      {% else %}<span class="eyebrow">{{ icon('flame', 14) }}Popular this month</span>{% endif %}
+      <h2 id="recs-title">{% if personalised %}Recommended for you{% else %}Trending on campus{% endif %}</h2>
+    </div>
   </div>
   {% if personalised %}
   <div class="callout callout-ai mb-4">
     {{ ai_badge() }}
-    <p>Picked from your searches, the items you viewed and your wishlist. Each card says why it's here.</p>
+    <p>Matched to your searches, the items you viewed and your wishlist. Each card says why it's here.</p>
   </div>
   {% elif g.user and g.user.role == 'user' %}
   <div class="callout callout-ai mb-4">
@@ -67,16 +83,18 @@
   </div>
   {% endif %}
   <div class="grid">
-    {% for r in recs %}{{ product_card(r.product, r.reason if personalised else None) }}{% endfor %}
+    {% for r in recs %}{{ product_card(r.product, r.reason if personalised else None, loop.index0) }}{% endfor %}
   </div>
 </section>
 
 <section class="section" aria-labelledby="cats-title">
-  <div class="section-head"><h2 id="cats-title">Shop by category</h2></div>
+  <div class="section-head">
+    <div><span class="eyebrow">Browse</span><h2 id="cats-title">Shop by category</h2></div>
+  </div>
   <div class="cat-grid">
     {% for c in categories %}
-    <a class="cat-tile" href="{{ url_for('search', category=c.category_id) }}">
-      <span class="emoji" aria-hidden="true">{{ c.icon }}</span>
+    <a class="cat-tile tint cat-{{ c.category_id }}" href="{{ url_for('search', category=c.category_id) }}">
+      {{ cat_picture(c.category_id, c.icon, 'cat-img', 52) }}
       <span>{{ c.name }}</span>
       <span class="count">{{ cat_counts.get(c.category_id, 0) }} items</span>
     </a>
@@ -86,11 +104,11 @@
 
 <section class="section" aria-labelledby="latest-title">
   <div class="section-head">
-    <h2 id="latest-title">Just listed</h2>
-    <a class="btn btn-ghost btn-sm" href="{{ url_for('search') }}">View all items {{ icon('arrow-right', 14) }}</a>
+    <div><span class="eyebrow">Fresh</span><h2 id="latest-title">Just listed</h2></div>
+    <a class="btn btn-outline btn-sm" href="{{ url_for('search') }}">View all items {{ icon('arrow-right', 14) }}</a>
   </div>
   <div class="grid">
-    {% for p in latest %}{{ product_card(p) }}{% endfor %}
+    {% for p in latest %}{{ product_card(p, None, loop.index0) }}{% endfor %}
   </div>
 </section>
 {% endblock %}

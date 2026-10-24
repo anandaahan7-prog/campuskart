@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import product_card, stars, status_pill, icon, ai_badge %}
+{% from "_macros.html" import product_card, stars, status_pill, icon, ai_badge, cat_picture %}
 {% block title %}{{ p.title }}{% endblock %}
 {% block content %}
 {% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
@@ -11,9 +11,10 @@
 
 <div class="product-page">
   <div class="product-media">
-    <div class="thumb thumb-lg cat-{{ p.category_id }}">
+    <div class="thumb thumb-lg tint cat-{{ p.category_id }}">
       <span class="thumb-tag">{{ p.condition }}</span>
-      <span class="thumb-emoji" aria-hidden="true">{{ p.category_icon }}</span>
+      {% if off >= 5 %}<span class="thumb-off" aria-hidden="true">−{{ off }}%</span>{% endif %}
+      {{ cat_picture(p.category_id, p.category_icon, 'thumb-img', 220, False) }}
     </div>
     <p class="product-meta-line">
       <span>{{ icon('eye', 14) }}{{ views }} views</span>
@@ -105,10 +106,10 @@
 <section class="section" aria-labelledby="similar-title">
   <div class="section-head">
     <h2 id="similar-title" class="title-icon">{{ icon('sparkles', 20) }}Similar items</h2>
-    <span class="pill pill-ai">Matched by content similarity</span>
+    {{ ai_badge("Content similarity") }}
   </div>
   <div class="grid">
-    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this item') }}{% endfor %}
+    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this item', loop.index0) }}{% endfor %}
   </div>
 </section>
 {% endif %}

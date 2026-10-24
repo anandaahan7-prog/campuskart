@@ -43,7 +43,30 @@
   'cart': '<circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>',
   'sliders': '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
   'chart': '<path d="M3 3v18h18"/><path d="M7 16v-4M12 16V8M17 16v-7"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  'moon': '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  'leaf': '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
 } %}
+
+{# 3D category artwork: Microsoft Fluent Emoji (MIT), served by jsDelivr. Emoji is the offline fallback. #}
+{% set FLUENT = 'https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/' %}
+{% set CAT_IMG = {1: 'Books/3D/books_3d.png', 2: 'Laptop/3D/laptop_3d.png', 3: 'Abacus/3D/abacus_3d.png',
+                  4: 'Triangular%20ruler/3D/triangular_ruler_3d.png', 5: 'Lab%20coat/3D/lab_coat_3d.png',
+                  6: 'Bed/3D/bed_3d.png', 7: 'Bicycle/3D/bicycle_3d.png', 8: 'Cricket%20game/3D/cricket_game_3d.png',
+                  9: 'T-shirt/3D/t-shirt_3d.png'} %}
+{% set ART = {'cart': 'Shopping%20cart/3D/shopping_cart_3d.png', 'sparkles': 'Sparkles/3D/sparkles_3d.png',
+              'cap': 'Graduation%20cap/3D/graduation_cap_3d.png', 'bags': 'Shopping%20bags/3D/shopping_bags_3d.png',
+              'seedling': 'Seedling/3D/seedling_3d.png', 'money': 'Money%20bag/3D/money_bag_3d.png',
+              'package': 'Package/3D/package_3d.png', 'heart': 'Red%20heart/3D/red_heart_3d.png',
+              'books': 'Books/3D/books_3d.png', 'abacus': 'Abacus/3D/abacus_3d.png', 'bicycle': 'Bicycle/3D/bicycle_3d.png'} %}
+
+{% macro art_url(key) -%}{{ FLUENT ~ ART[key] }}{%- endmacro %}
+
+{# Category picture with emoji fallback (used by cards, tiles and the product page) #}
+{% macro cat_picture(category_id, emoji, cls='thumb-img', size=96, lazy=True) -%}
+<img class="{{ cls }}" src="{{ FLUENT ~ CAT_IMG.get(category_id, 'Package/3D/package_3d.png') }}" alt="" width="{{ size }}" height="{{ size }}"
+     {% if lazy %}loading="lazy" {% endif %}decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="{{ 'thumb-fallback' if cls == 'thumb-img' else 'emoji' }}" aria-hidden="true" hidden>{{ emoji }}</span>
+{%- endmacro %}
 
 {% macro icon(name, size=18, cls='') -%}
 <svg class="icon {{ cls }}" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{{ ICONS.get(name, '')|safe }}</svg>
@@ -53,13 +76,13 @@
    Product card. The whole card is one link; screen readers get a clean name
    plus price context ("was ... MRP") instead of a pile of symbols.
    --------------------------------------------------------------------------- #}
-{% macro product_card(p, reason=None) %}
+{% macro product_card(p, reason=None, i=0) %}
 {% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
-<a class="product-card" href="{{ url_for('product', pid=p.product_id) }}">
-  <div class="thumb cat-{{ p.category_id }}">
+<a class="product-card reveal" style="--i: {{ [i, 8]|min }}" href="{{ url_for('product', pid=p.product_id) }}">
+  <div class="thumb tint cat-{{ p.category_id }}">
     <span class="thumb-tag">{{ p.condition }}</span>
     {% if off >= 5 %}<span class="thumb-off" aria-hidden="true">−{{ off }}%</span>{% endif %}
-    <span class="thumb-emoji" aria-hidden="true">{{ p.category_icon }}</span>
+    {{ cat_picture(p.category_id, p.category_icon) }}
   </div>
   <div class="product-body">
     <span class="product-title">{{ p.title }}</span>
@@ -70,7 +93,7 @@
     </span>
     {% if reason %}<span class="ai-reason">{{ icon('sparkles', 14) }}<span>{{ reason }}</span></span>{% endif %}
     <span class="meta">
-      <span>{{ p.seller_name }}</span>
+      <span class="seller"><span class="mini-avatar" aria-hidden="true">{{ p.seller_name[0] }}</span><span>{{ p.seller_name }}</span></span>
       {% if p.seller_rating %}<span class="rating">{{ icon('star', 12) }}{{ p.seller_rating }}<span class="sr-only"> seller rating</span></span>{% endif %}
     </span>
   </div>

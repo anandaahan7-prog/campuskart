@@ -46,7 +46,7 @@
   {% endif %}
 
   {% if results %}
-    <div class="grid">{% for p in results %}{{ product_card(p) }}{% endfor %}</div>
+    <div class="grid">{% for p in results %}{{ product_card(p, None, loop.index0) }}{% endfor %}</div>
   {% else %}
     {{ empty_state('search', 'No items match' ~ (' “' ~ q ~ '”' if q else ' these filters'),
                    'Try a shorter word, check the spelling, or remove a filter.',
@@ -57,7 +57,7 @@
         {{ ai_badge() }}
         <p><strong>Did you mean one of these?</strong> Smart search also matches typos and partial words.</p>
       </div>
-      <div class="grid">{% for p in ai_suggestions %}{{ product_card(p) }}{% endfor %}</div>
+      <div class="grid">{% for p in ai_suggestions %}{{ product_card(p, None, loop.index0) }}{% endfor %}</div>
     </div>
     {% endif %}
   {% endif %}

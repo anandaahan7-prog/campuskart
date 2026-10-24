@@ -5,10 +5,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#4f46e5">
+  <meta name="theme-color" content="#0f766e">
   <title>{% block title %}CampusKart{% endblock %} · CampusKart</title>
+  <script>
+    /* Apply the saved theme before first paint (no flash). Storage can be blocked: fail quietly. */
+    (() => {
+      let t = null;
+      try { t = localStorage.getItem('ck-theme'); } catch (e) {}
+      const root = document.documentElement;
+      if (t) root.dataset.theme = t;
+      const dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+      root.dataset.resolvedTheme = dark ? 'dark' : 'light';
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400..700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='26' fill='%230f766e'/><text x='50' y='68' font-size='58' text-anchor='middle'>🛒</text></svg>">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -17,7 +32,7 @@
   <div class="container header-row">
     <a class="logo" href="{{ url_for('index') }}" aria-label="CampusKart home">
       <span class="logo-mark">{{ icon('cart', 18) }}</span>
-      <span aria-hidden="true">Campus<span>Kart</span></span>
+      <span aria-hidden="true">Campus<span class="accent">Kart</span></span>
     </a>
 
     {% if not g.user or g.user.role != 'admin' %}
@@ -25,22 +40,28 @@
       <label for="site-search" class="sr-only">Search listings</label>
       {{ icon('search', 18) }}
       <input id="site-search" name="q" type="search" placeholder="Search books, calculators, cycles…"
-             value="{{ q or '' }}" autocomplete="off" enterkeyhint="search">
+             value="{{ q or '' }}" autocomplete="off" enterkeyhint="search" aria-keyshortcuts="/">
+      <kbd aria-hidden="true">/</kbd>
     </form>
     {% endif %}
 
     <nav class="nav-links" aria-label="Main">
       {% if g.user %}
         {% if g.user.role == 'admin' %}
-          {# Admin sections live in the in-page segmented nav; the header only links back to it. #}
           <a class="nav-link" href="{{ url_for('admin_dashboard') }}" {% if ep and ep.startswith('admin') %}aria-current="page"{% endif %}>{{ icon('shield', 16) }}Admin</a>
         {% else %}
-          <a class="btn btn-sm btn-sell" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell</a>
+          <a class="btn btn-sm btn-accent btn-sell" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell</a>
           {% for e, label in [('my_listings', 'My listings'), ('orders', 'Orders'), ('wishlist', 'Wishlist')] %}
           <a class="nav-link" href="{{ url_for(e) }}" {% if ep == e %}aria-current="page"{% endif %}>{{ label }}</a>
           {% endfor %}
         {% endif %}
+      {% endif %}
 
+      <button class="icon-btn theme-toggle" type="button" id="theme-toggle" aria-label="Switch to dark theme">
+        {{ icon('moon', 19, 'moon') }}{{ icon('sun', 19, 'sun') }}
+      </button>
+
+      {% if g.user %}
         <a class="icon-btn" href="{{ url_for('notifications') }}"
            aria-label="Notifications{% if unread_count %}, {{ unread_count }} unread{% endif %}"
            {% if ep == 'notifications' %}aria-current="page"{% endif %}>
@@ -80,32 +101,33 @@
   </div>
 </header>
 
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="toaster" aria-label="Notifications">
+  {% set tone = {'success': ('good', 'check-circle', 'status'), 'info': ('info', 'info', 'status'),
+                 'warning': ('warn', 'alert', 'alert'), 'danger': ('bad', 'alert', 'alert')} %}
+  {% for cat, msg in messages %}
+  {% set t = tone.get(cat, tone['info']) %}
+  <div class="toast toast-{{ t[0] }}" role="{{ t[2] }}" {% if t[2] == 'status' %}data-autoclose{% endif %}>
+    {{ icon(t[1], 18) }}
+    <p>{{ msg }}</p>
+    <button type="button" class="toast-close" aria-label="Dismiss message" data-dismiss>{{ icon('x', 15) }}</button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
 <main id="main" tabindex="-1">
   <div class="container">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <div class="flash-stack">
-      {% set tone = {'success': ('good', 'check-circle', 'status'), 'info': ('info', 'info', 'status'),
-                     'warning': ('warn', 'alert', 'alert'), 'danger': ('bad', 'alert', 'alert')} %}
-      {% for cat, msg in messages %}
-      {% set t = tone.get(cat, tone['info']) %}
-      <div class="callout callout-{{ t[0] }} flash" role="{{ t[2] }}">
-        {{ icon(t[1], 18) }}
-        <p class="flash-text">{{ msg }}</p>
-        <button type="button" class="flash-close" aria-label="Dismiss message" data-dismiss>{{ icon('x', 16) }}</button>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    {% endwith %}
     {% block content %}{% endblock %}
   </div>
 </main>
 
 <footer class="site-footer">
   <div class="container">
-    <span>CampusKart · AI-powered student marketplace</span>
-    <span>DBMS project · Flask · SQLite · scikit-learn</span>
+    <span class="eco">{{ icon('leaf', 15) }}Every resale keeps a book, calculator or cycle in use for another semester.</span>
+    <span>CampusKart · DBMS project · Flask · SQLite · scikit-learn</span>
   </div>
 </footer>
 
@@ -144,7 +166,30 @@
 
 <script>
 (() => {
-  // Account menu: click / Escape / click-outside. Opens from its trigger (origin-aware).
+  const root = document.documentElement;
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Theme toggle (persisted; follows the system until the user picks one).
+  const toggle = document.getElementById('theme-toggle');
+  const syncToggle = () => toggle?.setAttribute('aria-label',
+    root.dataset.resolvedTheme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  syncToggle();
+  toggle?.addEventListener('click', () => {
+    const next = root.dataset.resolvedTheme === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = next;
+    root.dataset.resolvedTheme = next;
+    try { localStorage.setItem('ck-theme', next); } catch (e) {}
+    syncToggle();
+  });
+
+  // "/" focuses search (keyboard action: no animation).
+  document.addEventListener('keydown', e => {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || /input|textarea|select/i.test(document.activeElement.tagName)) return;
+    const s = document.getElementById('site-search');
+    if (s) { e.preventDefault(); s.focus(); }
+  });
+
+  // Account menu: click / Escape / click-outside; focus moves into the menu.
   document.querySelectorAll('[data-menu]').forEach(menu => {
     const btn = menu.querySelector('.menu-trigger');
     const set = open => {
@@ -157,11 +202,50 @@
     menu.addEventListener('keydown', e => { if (e.key === 'Escape') { set(false); btn.focus(); } });
   });
 
-  // Dismissible flash messages (exit is instant: the system is responding, keep it snappy).
-  document.querySelectorAll('[data-dismiss]').forEach(b =>
-    b.addEventListener('click', () => b.closest('.flash').remove()));
+  // Toasts: success/info close themselves after 5s; timers pause on hover, focus,
+  // and while the tab is hidden. Errors and warnings stay until dismissed.
+  const closeToast = t => {
+    if (t.classList.contains('leaving')) return;
+    t.classList.add('leaving');
+    setTimeout(() => t.remove(), reduceMotion ? 0 : 180);
+  };
+  document.querySelectorAll('.toast').forEach(t => {
+    t.querySelector('[data-dismiss]').addEventListener('click', () => closeToast(t));
+    if (!t.hasAttribute('data-autoclose')) return;
+    let left = 5000, start = Date.now(), timer = setTimeout(() => closeToast(t), left);
+    const pause = () => { clearTimeout(timer); left -= Date.now() - start; };
+    const resume = () => { start = Date.now(); clearTimeout(timer); timer = setTimeout(() => closeToast(t), left); };
+    t.addEventListener('mouseenter', pause); t.addEventListener('mouseleave', resume);
+    t.addEventListener('focusin', pause); t.addEventListener('focusout', resume);
+    document.addEventListener('visibilitychange', () => document.hidden ? pause() : resume());
+  });
 
-  // Confirm dialog for destructive or important form submits.
+  // Shared-element page transition: the clicked card's image becomes the product hero.
+  const clearNames = () => document.querySelectorAll('.thumb').forEach(el => el.style.viewTransitionName = '');
+  document.addEventListener('click', e => {
+    const card = e.target.closest('.product-card');
+    if (!card || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    clearNames();
+    document.querySelectorAll('.thumb-lg').forEach(el => el.style.viewTransitionName = 'none');
+    card.querySelector('.thumb').style.viewTransitionName = 'product-hero';
+  });
+  window.addEventListener('pageshow', e => { if (e.persisted) clearNames(); });
+
+  // Count-up for dashboard numbers (occasional view, explains "this is live data").
+  document.querySelectorAll('[data-count]').forEach(el => {
+    const target = Number(el.dataset.count), prefix = el.dataset.prefix || '';
+    const fmt = n => prefix + Math.round(n).toLocaleString('en-IN');
+    if (reduceMotion || !target) { el.textContent = fmt(target); return; }
+    const t0 = performance.now(), dur = 900, ease = x => 1 - Math.pow(1 - x, 4);
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      el.textContent = fmt(target * ease(p));
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+
+  // Confirm dialog for important or destructive form submits.
   const dlg = document.getElementById('confirm-dialog');
   let pending = null;
   document.addEventListener('submit', e => {

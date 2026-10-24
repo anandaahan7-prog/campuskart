@@ -22,7 +22,7 @@ def login(page, email, pw):
 
 
 def shot(page, name, height=None, clip_selector=None):
-    page.evaluate("document.querySelectorAll('.flash-stack').forEach(e => e.remove())")
+    page.evaluate("document.querySelectorAll('.toaster').forEach(e => e.remove())")
     path = os.path.join(OUT, name)
     if clip_selector:
         page.add_style_tag(content=".site-header { position: static !important; }")

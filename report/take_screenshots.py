@@ -22,10 +22,10 @@ def login(page, email, pw):
 
 
 def shot(page, name, height=None, clip_selector=None):
-    page.evaluate("document.querySelectorAll('main > .flash').forEach(e => e.remove())")
+    page.evaluate("document.querySelectorAll('.flash-stack').forEach(e => e.remove())")
     path = os.path.join(OUT, name)
     if clip_selector:
-        page.add_style_tag(content=".navbar { position: static !important; }")
+        page.add_style_tag(content=".site-header { position: static !important; }")
         page.locator(clip_selector).first.screenshot(path=path)
     else:
         page.screenshot(path=path, clip={"x": 0, "y": 0, "width": 1280, "height": height or 760})
@@ -58,9 +58,9 @@ with sync_playwright() as p:
     page.select_option("select[name=category_id]", "3")
     page.fill("input[name=original_price]", "1200")
     page.fill("input[name=age_months]", "12")
-    page.click("text=Suggest price")
+    page.click("#suggestBtn")
     page.wait_for_selector(".suggested")
-    page.click("text=Use this price")
+    page.click("#usePrice")
     page.wait_for_timeout(1200)
     shot(page, "ss_sell_ai.png", clip_selector="#sellForm")
 

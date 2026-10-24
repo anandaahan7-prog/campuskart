@@ -1,24 +1,28 @@
 {% extends "base.html" %}
-{% from "_macros.html" import product_card, status_pill %}
+{% from "_macros.html" import product_card, status_pill, icon, empty_state %}
 {% block title %}Wishlist{% endblock %}
 {% block content %}
-<h1>❤ Wishlist</h1>
-<p class="muted">You'll get a notification if any of these items is sold (database trigger).</p>
+<div class="page-head">
+  <h1>Wishlist</h1>
+  <p>We'll notify you if any of these items sells, so you're never caught off guard.</p>
+</div>
 {% if items %}
 <div class="grid">
   {% for p in items %}
   <div>
     {{ product_card(p) }}
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+    <div class="between mt-2">
       {{ status_pill(p.status) }}
       <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
-        <button class="btn btn-outline btn-sm">Remove</button>
+        <button class="btn btn-ghost btn-sm">{{ icon('x', 14) }}Remove<span class="sr-only"> {{ p.title }} from wishlist</span></button>
       </form>
     </div>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="card empty"><div class="emoji">💔</div>Your wishlist is empty.</div>
+{{ empty_state('heart', 'Nothing saved yet',
+               "Tap “Save to wishlist” on any item to keep it here. We'll tell you if it sells.",
+               'Browse items', url_for('search')) }}
 {% endif %}
 {% endblock %}

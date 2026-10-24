@@ -1,94 +1,115 @@
 {% extends "base.html" %}
-{% from "_macros.html" import product_card, stars, status_pill %}
+{% from "_macros.html" import product_card, stars, status_pill, icon, ai_badge %}
 {% block title %}{{ p.title }}{% endblock %}
 {% block content %}
-<p class="small"><a href="{{ url_for('search', category=p.category_id) }}">{{ p.category_icon }} {{ p.category_name }}</a></p>
+{% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
+<nav class="breadcrumb" aria-label="Breadcrumb">
+  <a href="{{ url_for('index') }}">Home</a>{{ icon('chevron-right', 14) }}
+  <a href="{{ url_for('search', category=p.category_id) }}">{{ p.category_name }}</a>{{ icon('chevron-right', 14) }}
+  <span aria-current="page">{{ p.title|truncate(40) }}</span>
+</nav>
 
 <div class="product-page">
-  <div>
-    <div class="thumb thumb-lg cat-{{ p.category_id }}">{{ p.category_icon }}</div>
-    <p class="small muted" style="margin-top:8px">👁 {{ views }} views · Listed {{ p.created_at|ago }}</p>
+  <div class="product-media">
+    <div class="thumb thumb-lg cat-{{ p.category_id }}">
+      <span class="thumb-tag">{{ p.condition }}</span>
+      <span class="thumb-emoji" aria-hidden="true">{{ p.category_icon }}</span>
+    </div>
+    <p class="product-meta-line">
+      <span>{{ icon('eye', 14) }}{{ views }} views</span>
+      <span>{{ icon('clock', 14) }}Listed {{ p.created_at|ago }}</span>
+    </p>
   </div>
 
-  <div class="card">
+  <section class="card" aria-labelledby="product-title">
     {% if p.status != 'available' %}<p>{{ status_pill(p.status) }}</p>{% endif %}
-    <h1>{{ p.title }}</h1>
-    <div>
+    <h1 id="product-title">{{ p.title }}</h1>
+    <div class="price-block">
       <span class="big-price">₹{{ p.price|inr }}</span>
       <span class="mrp">MRP ₹{{ p.original_price|inr }}</span>
-      <span class="off">{{ ((1 - p.price / p.original_price) * 100)|round|int }}% off</span>
+      {% if off > 0 %}<span class="save-text">Save {{ off }}%</span>{% endif %}
     </div>
 
     {% if verdict %}
-    <div class="verdict verdict-{{ verdict.css }}">
-      <span class="ai-icon">AI</span>
-      <strong>{{ verdict.label }}</strong>: our price model estimates this item at about
-      <strong>₹{{ verdict.estimate|inr }}</strong>
-      ({% if verdict.diff > 0 %}{{ verdict.diff }}% above{% elif verdict.diff < 0 %}{{ -verdict.diff }}% below{% else %}equal to{% endif %} the estimate).
+    {% set tone = {'good': 'good', 'fair': 'info', 'bad': 'bad'}[verdict.css] %}
+    <div class="callout callout-{{ tone }}">
+      {{ ai_badge() }}
+      <p><strong>{{ verdict.label }}.</strong> Our price model estimates this item at about
+        <strong>₹{{ verdict.estimate|inr }}</strong>, so this price is
+        {% if verdict.diff > 0 %}{{ verdict.diff }}% above{% elif verdict.diff < 0 %}{{ -verdict.diff }}% below{% else %}right at{% endif %} the estimate.</p>
     </div>
     {% endif %}
 
-    <p>{{ p.description }}</p>
+    <p class="mt-4">{{ p.description }}</p>
     <dl class="spec">
       <dt>Condition</dt><dd>{{ p.condition }}</dd>
-      <dt>Age</dt><dd>{{ p.age_months }} months</dd>
+      <dt>Age</dt><dd>{{ p.age_months }} month{{ '' if p.age_months == 1 else 's' }}</dd>
       <dt>Category</dt><dd>{{ p.category_name }}</dd>
     </dl>
 
-    <div class="card" style="padding:14px;box-shadow:none">
+    <div class="card card-quiet">
       <div class="seller-box">
-        <span class="avatar">{{ p.seller_name[0] }}</span>
-        <div>
-          <strong>{{ p.seller_name }}</strong><br>
-          <span class="small muted">{{ p.seller_branch }}{% if p.seller_year %} · Year {{ p.seller_year }}{% endif %}</span>
+        <span class="avatar" aria-hidden="true">{{ p.seller_name[0] }}</span>
+        <div class="grow">
+          <strong>{{ p.seller_name }}</strong>
+          <span class="subtext">{{ p.seller_branch }}{% if p.seller_year %} · Year {{ p.seller_year }}{% endif %}</span>
         </div>
-        <div style="margin-left:auto;text-align:right">
-          {% if p.seller_reviews %}{{ stars(p.seller_rating) }}<br><span class="small muted">{{ p.seller_rating }} ({{ p.seller_reviews }} reviews)</span>
-          {% else %}<span class="small muted">No reviews yet</span>{% endif %}
+        <div class="text-right">
+          {% if p.seller_reviews %}{{ stars(p.seller_rating) }}
+          <span class="subtext">{{ p.seller_rating }} from {{ p.seller_reviews }} review{{ '' if p.seller_reviews == 1 else 's' }}</span>
+          {% else %}<span class="subtext">No reviews yet</span>{% endif %}
         </div>
       </div>
     </div>
 
     <div class="actions">
       {% if not g.user %}
-        <a class="btn btn-lg" href="{{ url_for('login', next=request.path) }}">Login to buy</a>
+        <a class="btn btn-lg" href="{{ url_for('login', next=request.path) }}">Log in to buy</a>
       {% elif is_owner %}
         {% if p.status in ['available', 'pending'] %}
-        <a class="btn btn-outline" href="{{ url_for('edit_listing', pid=p.product_id) }}">✏️ Edit listing</a>
+        <a class="btn btn-lg btn-outline" href="{{ url_for('edit_listing', pid=p.product_id) }}">{{ icon('edit', 16) }}Edit listing</a>
         {% endif %}
       {% elif g.user.role == 'user' and p.status == 'available' %}
-        <form method="post" action="{{ url_for('buy', pid=p.product_id) }}" onsubmit="return confirm('Buy this item for ₹{{ p.price|inr }}?')">
-          <button class="btn btn-lg">Buy now</button>
+        <form method="post" action="{{ url_for('buy', pid=p.product_id) }}"
+              data-confirm-title="Buy this item for ₹{{ p.price|inr }}?"
+              data-confirm="{{ p.seller_name }} will be notified, and you'll see their phone number to arrange a campus pickup."
+              data-confirm-ok="Buy for ₹{{ p.price|inr }}" data-confirm-cancel="Keep browsing">
+          <button class="btn btn-lg">{{ icon('bag', 18) }}Buy now</button>
         </form>
         <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
-          <button class="btn btn-lg btn-outline">{{ '❤ Wishlisted' if in_wishlist else '♡ Add to wishlist' }}</button>
+          <button class="btn btn-lg btn-outline" aria-pressed="{{ 'true' if in_wishlist else 'false' }}">
+            {{ icon('heart', 18) }}{{ 'Saved to wishlist' if in_wishlist else 'Save to wishlist' }}
+          </button>
         </form>
       {% endif %}
     </div>
-  </div>
+  </section>
 </div>
 
 {% if reviews %}
-<div class="section">
-  <h2>What buyers say about {{ p.seller_name.split()[0] }}</h2>
-  <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(280px,1fr))">
+<section class="section" aria-labelledby="reviews-title">
+  <h2 id="reviews-title">What buyers say about {{ p.seller_name.split()[0] }}</h2>
+  <div class="grid grid-wide">
     {% for r in reviews %}
-    <div class="card">
+    <article class="card card-quiet review-card">
       {{ stars(r.rating) }}
-      <p style="margin:6px 0">{{ r.comment or 'No comment' }}</p>
-      <p class="small muted" style="margin:0">{{ r.buyer_name }} · bought “{{ r.title }}”</p>
-    </div>
+      <p>{{ r.comment or 'No written review.' }}</p>
+      <span class="subtext">{{ r.buyer_name }} bought “{{ r.title }}”</span>
+    </article>
     {% endfor %}
   </div>
-</div>
+</section>
 {% endif %}
 
 {% if similar %}
-<div class="section">
-  <div class="section-head"><h2>✨ Similar items</h2><span class="pill pill-ai">AI · content similarity</span></div>
-  <div class="grid">
-    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar') }}{% endfor %}
+<section class="section" aria-labelledby="similar-title">
+  <div class="section-head">
+    <h2 id="similar-title" class="title-icon">{{ icon('sparkles', 20) }}Similar items</h2>
+    <span class="pill pill-ai">Matched by content similarity</span>
   </div>
-</div>
+  <div class="grid">
+    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this item') }}{% endfor %}
+  </div>
+</section>
 {% endif %}
 {% endblock %}

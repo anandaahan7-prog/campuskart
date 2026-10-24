@@ -1,17 +1,19 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon %}
 {% block title %}Database explorer{% endblock %}
 {% block content %}
-<h1>🗄️ Database explorer</h1>
+<h1>Database explorer</h1>
 {% include "admin/_nav.html" %}
 
-<div class="card">
-  <h2>Run a SQL query</h2>
-  <p class="small muted">Read-only connection: only SELECT / WITH queries are allowed, up to 200 rows.</p>
+<section class="card" aria-labelledby="sql-title">
+  <h2 id="sql-title">Run a SQL query</h2>
+  <p class="small muted">Runs on a read-only connection. SELECT and WITH queries only, up to 200 rows.</p>
   <form method="post">
-    <textarea class="code" name="sql" id="sql">{{ sql }}</textarea>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
-      <button class="btn">▶ Run query</button>
-      <span class="small muted">Examples:</span>
+    <label for="sql" class="sr-only">SQL query</label>
+    <textarea class="code" name="sql" id="sql" spellcheck="false" autocapitalize="off">{{ sql }}</textarea>
+    <div class="cluster mt-3">
+      <button class="btn">{{ icon('play', 14) }}Run query</button>
+      <span class="xs muted">Try an example:</span>
       {% for label, ex in [
         ('Seller ratings (view)', 'SELECT * FROM v_seller_ratings ORDER BY avg_rating DESC;'),
         ('Category sales (view)', 'SELECT * FROM v_category_sales;'),
@@ -19,43 +21,57 @@
         ('Most wishlisted (subquery)', 'SELECT title, price,\n  (SELECT COUNT(*) FROM wishlist w WHERE w.product_id = p.product_id) AS wishes\nFROM products p ORDER BY wishes DESC LIMIT 10;'),
         ('Avg price by condition', 'SELECT condition, COUNT(*) AS items,\n  ROUND(AVG(price * 100.0 / original_price)) AS avg_percent_of_mrp\nFROM products WHERE status IN (\'available\', \'sold\')\nGROUP BY condition;'),
         ('Notifications by triggers', 'SELECT u.name, n.message, n.created_at\nFROM notifications n JOIN users u ON u.user_id = n.user_id\nWHERE n.message NOT LIKE \'Welcome%\'\nORDER BY n.notif_id DESC;')] %}
-      <button type="button" class="chip" onclick='document.getElementById("sql").value = {{ ex|tojson }}'>{{ label }}</button>
+      <button type="button" class="chip" data-sql='{{ ex|tojson }}'>{{ label }}</button>
       {% endfor %}
     </div>
   </form>
 
-  {% if error %}<div class="flash flash-danger" style="margin-top:14px">{{ error }}</div>{% endif %}
+  {% if error %}
+  <div class="callout callout-bad mt-4" role="alert">{{ icon('alert', 18) }}<p>{{ error }}</p></div>
+  {% endif %}
   {% if columns %}
-  <div class="table-wrap" style="margin-top:14px;max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px">
+  <div class="result-table table-wrap" tabindex="0" aria-label="Query results">
     <table>
-      <tr>{% for c in columns %}<th>{{ c }}</th>{% endfor %}</tr>
-      {% for r in rows %}<tr>{% for v in r %}<td class="small">{{ v if v is not none else 'NULL' }}</td>{% endfor %}</tr>{% endfor %}
+      <thead><tr>{% for c in columns %}<th scope="col">{{ c }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in rows %}<tr>{% for v in r %}<td>{{ v if v is not none else 'NULL' }}</td>{% endfor %}</tr>{% endfor %}
+      </tbody>
     </table>
   </div>
-  <p class="small muted">{{ rows|length }} row(s)</p>
+  <p class="xs muted mt-2 mb-0" role="status">{{ rows|length }} row{{ '' if rows|length == 1 else 's' }}</p>
   {% endif %}
-</div>
+</section>
 
 <div class="two-col section">
-  <div class="card">
-    <h2>Tables</h2>
+  <section class="card" aria-labelledby="tables-title">
+    <h2 id="tables-title" class="title-icon">{{ icon('table', 18) }}Tables</h2>
     {% for o in objects if o.type == 'table' %}
     <details class="schema-obj">
-      <summary>📋 {{ o.name }} <span class="pill">{{ counts[o.name] }} rows</span></summary>
+      <summary>{{ o.name }} <span class="pill">{{ counts[o.name] }} rows</span><span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
       <pre class="sql">{{ o.sql }}</pre>
     </details>
     {% endfor %}
-  </div>
-  <div class="card">
-    <h2>Views, triggers & indexes</h2>
+  </section>
+  <section class="card" aria-labelledby="objects-title">
+    <h2 id="objects-title" class="title-icon">{{ icon('zap', 18) }}Views, triggers and indexes</h2>
     {% for o in objects if o.type != 'table' %}
     <details class="schema-obj">
-      <summary>{{ {'view': '👁', 'trigger': '⚡', 'index': '🔑'}[o.type] }} {{ o.name }}
+      <summary>{{ icon({'view': 'eye', 'trigger': 'zap', 'index': 'key'}[o.type], 15) }}{{ o.name }}
         <span class="pill {{ 'pill-ai' if o.type == 'trigger' else 'pill-brand' }}">{{ o.type }}</span>
-        {% if o.type != 'view' %}<span class="small muted">on {{ o.tbl_name }}</span>{% endif %}</summary>
+        {% if o.type != 'view' %}<span class="xs muted">on {{ o.tbl_name }}</span>{% endif %}
+        <span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
       <pre class="sql">{{ o.sql }}</pre>
     </details>
     {% endfor %}
-  </div>
+  </section>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll('[data-sql]').forEach(b => b.addEventListener('click', () => {
+    const ta = document.getElementById('sql');
+    ta.value = JSON.parse(b.dataset.sql);
+    ta.focus();
+  }));
+</script>
 {% endblock %}

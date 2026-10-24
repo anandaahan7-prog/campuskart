@@ -1,49 +1,61 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% from "_macros.html" import icon %}
+{% block title %}Log in{% endblock %}
 {% block content %}
 <div class="auth-wrap">
-  <div class="card">
-    <h1>Login</h1>
-    <p class="muted">Welcome back to CampusKart.</p>
-    <form method="post">
-      <div class="field"><label>Email</label><input name="email" id="email" type="email" required></div>
-      <div class="field"><label>Password</label><input name="password" id="password" type="password" required></div>
-      <button class="btn btn-block btn-lg">Login</button>
+  <section class="card" aria-labelledby="login-title">
+    <h1 id="login-title">Log in</h1>
+    <p class="muted">Welcome back. Use your college email.</p>
+    <form method="post" class="mt-4">
+      <div class="field">
+        <label for="email">Email</label>
+        <input name="email" id="email" type="email" autocomplete="email" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input name="password" id="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-block btn-lg">Log in</button>
     </form>
-    <p class="small muted" style="margin-top:14px">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
-  </div>
+    <p class="small muted mt-4 mb-0">New to CampusKart? <a href="{{ url_for('register') }}">Create an account</a></p>
+  </section>
 
-  <div class="card">
-    <h2>🎓 Demo accounts</h2>
-    <p class="muted small">Click an account to fill the login form. Each student has a different search
-      history, so the AI recommends different items to each one.</p>
+  <section class="card" aria-labelledby="demo-title">
+    <h2 id="demo-title" class="title-icon">{{ icon('grad', 20) }}Demo accounts</h2>
+    <p class="muted small">Choose an account to log in instantly. Each student has a different search
+      history, so each sees different recommendations.</p>
     {% set notes = {
       'admin@campuskart.com': 'Dashboard, flagged listings, users, SQL explorer',
-      'rahul@college.edu': 'Searched: dbms book, python, laptop…',
-      'priya@college.edu': 'Searched: engineering drawing, drafter, calculator…',
-      'karan@college.edu': 'Searched: arduino, multimeter, raspberry pi…',
-      'aisha@college.edu': 'Searched: cycle, mattress, kettle…',
-      'neha@college.edu': 'New user, no history (cold start → trending)'} %}
-    {% for u in demo_users %}
-    <button type="button" class="demo-user"
-            onclick="fillLogin('{{ u.email }}', '{{ 'admin123' if u.role == 'admin' else 'demo123' }}')">
-      <span class="avatar">{{ u.name[0] }}</span>
-      <span>
-        <strong>{{ u.name }}</strong>
-        {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% else %}<span class="pill pill-brand">{{ u.branch }}</span>{% endif %}
-        <br><span class="muted small">{{ notes.get(u.email, '') }}</span>
-      </span>
-    </button>
-    {% endfor %}
-  </div>
+      'rahul@college.edu': 'Searched dbms book, python, laptop',
+      'priya@college.edu': 'Searched engineering drawing, drafter, calculator',
+      'karan@college.edu': 'Searched arduino, multimeter, raspberry pi',
+      'aisha@college.edu': 'Searched cycle, mattress, kettle',
+      'neha@college.edu': 'New user with no history (sees trending items)'} %}
+    <div class="demo-list">
+      {% for u in demo_users %}
+      <button type="button" class="demo-user"
+              data-email="{{ u.email }}" data-pw="{{ 'admin123' if u.role == 'admin' else 'demo123' }}">
+        <span class="avatar" aria-hidden="true">{{ u.name[0] }}</span>
+        <span class="grow">
+          <strong>{{ u.name }}</strong>
+          {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% else %}<span class="pill pill-brand">{{ u.branch }}</span>{% endif %}
+          <span class="note">{{ notes.get(u.email, '') }}</span>
+        </span>
+        <span class="go">{{ icon('chevron-right', 18) }}</span>
+        <span class="sr-only">Log in as {{ u.name }}</span>
+      </button>
+      {% endfor %}
+    </div>
+  </section>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-  function fillLogin(email, pw) {
-    document.getElementById('email').value = email;
-    document.getElementById('password').value = pw;
-    document.getElementById('email').form.submit();
-  }
+  document.querySelectorAll('.demo-user').forEach(b => b.addEventListener('click', () => {
+    const email = document.getElementById('email');
+    email.value = b.dataset.email;
+    document.getElementById('password').value = b.dataset.pw;
+    email.form.requestSubmit();
+  }));
 </script>
 {% endblock %}

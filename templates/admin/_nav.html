@@ -1,7 +1,8 @@
-<div class="admin-nav">
-  {% for ep, label in [('admin_dashboard', '📊 Dashboard'), ('admin_listings', '📦 Listings'),
-                       ('admin_users', '👥 Users'), ('admin_orders', '🧾 Orders'),
-                       ('admin_database', '🗄️ Database explorer')] %}
-  <a class="btn btn-sm {{ '' if request.endpoint == ep else 'btn-outline' }}" href="{{ url_for(ep) }}">{{ label }}</a>
+{% from "_macros.html" import icon %}
+<nav class="segmented" aria-label="Admin sections">
+  {% for e, label, ic in [('admin_dashboard', 'Dashboard', 'dashboard'), ('admin_listings', 'Listings', 'package'),
+                          ('admin_users', 'Users', 'users'), ('admin_orders', 'Orders', 'receipt'),
+                          ('admin_database', 'Database explorer', 'database')] %}
+  <a href="{{ url_for(e) }}" {% if request.endpoint == e %}aria-current="page"{% endif %}>{{ icon(ic, 16) }}{{ label }}</a>
   {% endfor %}
-</div>
+</nav>

@@ -1,65 +1,89 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon, ai_badge %}
 {% block title %}{{ 'Edit listing' if item else 'Sell an item' }}{% endblock %}
 {% block content %}
+<div class="page-head">
+  <h1>{{ 'Edit your listing' if item else 'Sell an item' }}</h1>
+  <p>Describe your item and set a price. We'll suggest a fair price and check the listing before it goes live.</p>
+</div>
+
 <div class="two-col">
   <form class="card" method="post" id="sellForm">
-    <h1>{{ '✏️ Edit listing' if item else '➕ Sell an item' }}</h1>
-    <p class="muted">Fill the details below. AI will suggest a fair price and check the listing for spam.</p>
-
-    <div class="field"><label>Title</label>
-      <input name="title" required maxlength="100" value="{{ item.title if item else '' }}" placeholder="e.g. Casio fx-991ES Plus calculator"></div>
-    <div class="field"><label>Description</label>
-      <textarea name="description" required placeholder="Condition, what's included, why you're selling...">{{ item.description if item else '' }}</textarea></div>
+    <div class="field">
+      <label for="title">Title</label>
+      <input id="title" name="title" required maxlength="100" value="{{ item.title if item else '' }}"
+             placeholder="e.g. Casio fx-991ES Plus calculator">
+    </div>
+    <div class="field">
+      <label for="description">Description</label>
+      <textarea id="description" name="description" required aria-describedby="desc-hint"
+                placeholder="Condition, what's included, why you're selling">{{ item.description if item else '' }}</textarea>
+      <span class="hint" id="desc-hint">Keep contact details out. Buyers see your phone number after they order.</span>
+    </div>
 
     <div class="row">
-      <div class="field"><label>Category</label>
-        <select name="category_id" required>
-          {% for c in categories %}<option value="{{ c.category_id }}" {% if item and item.category_id == c.category_id %}selected{% endif %}>{{ c.icon }} {{ c.name }}</option>{% endfor %}
+      <div class="field">
+        <label for="category_id">Category</label>
+        <select id="category_id" name="category_id" required>
+          {% for c in categories %}<option value="{{ c.category_id }}" {% if item and item.category_id == c.category_id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}
         </select>
       </div>
-      <div class="field"><label>Condition</label>
-        <select name="condition" required>
+      <div class="field">
+        <label for="condition">Condition</label>
+        <select id="condition" name="condition" required>
           {% for c in conditions %}<option {% if (item and item.condition == c) or (not item and c == 'Good') %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </div>
     </div>
     <div class="row">
-      <div class="field"><label>Original price / MRP (₹)</label>
-        <input name="original_price" type="number" min="1" step="1" required value="{{ item.original_price|int if item else '' }}"></div>
-      <div class="field"><label>How old? (months)</label>
-        <input name="age_months" type="number" min="0" max="120" required value="{{ item.age_months if item else '' }}"></div>
+      <div class="field">
+        <label for="original_price">Original price (MRP, ₹)</label>
+        <input id="original_price" name="original_price" type="number" inputmode="numeric" min="1" step="1" required
+               value="{{ item.original_price|int if item else '' }}">
+      </div>
+      <div class="field">
+        <label for="age_months">Age in months</label>
+        <input id="age_months" name="age_months" type="number" inputmode="numeric" min="0" max="120" required
+               aria-describedby="age-hint" value="{{ item.age_months if item else '' }}">
+        <span class="hint" id="age-hint">How long you've had it. Use 0 if it's new.</span>
+      </div>
     </div>
 
     <div class="ai-box">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span><span class="ai-icon">AI</span> <strong>Fair price suggestion</strong></span>
-        <button type="button" class="btn btn-ai btn-sm" onclick="suggestPrice()">✨ Suggest price</button>
+      <div class="between">
+        <span class="cluster">{{ ai_badge() }}<strong>Fair price suggestion</strong></span>
+        <button type="button" class="btn btn-ai btn-sm" id="suggestBtn">{{ icon('sparkles', 14) }}<span>Suggest a price</span></button>
       </div>
-      <div class="result" id="priceResult">
-        <span class="muted small">Enter MRP, category, condition and age, then click “Suggest price”.</span>
+      <div class="result" id="priceResult" aria-live="polite">
+        Fill in the MRP, category, condition and age, then ask for a suggestion.
       </div>
     </div>
 
-    <div class="field"><label>Your selling price (₹)</label>
-      <input name="price" id="price" type="number" min="1" step="1" required value="{{ item.price|int if item else '' }}"></div>
+    <div class="field">
+      <label for="price">Your price (₹)</label>
+      <input name="price" id="price" type="number" inputmode="numeric" min="1" step="1" required
+             value="{{ item.price|int if item else '' }}">
+    </div>
 
-    <div id="spamResult" class="small" style="margin-bottom:12px"></div>
-    <button class="btn btn-lg btn-block">{{ 'Save changes' if item else 'Publish listing' }}</button>
+    <div id="spamResult" class="mb-4" aria-live="polite"></div>
+    <button class="btn btn-lg btn-block" type="submit">{{ 'Save changes' if item else 'Publish listing' }}</button>
   </form>
 
-  <div class="card">
-    <h2>How the AI helps</h2>
-    <p><span class="pill pill-ai">Price model</span><br>
-      A <strong>Linear Regression</strong> model trained on all listings in the database learns what
-      percentage of the MRP items keep, based on condition, age and category.</p>
-    <p><span class="pill pill-ai">Spam check</span><br>
-      A <strong>Naive Bayes</strong> text classifier, plus rules for phone numbers, links and unrealistic
-      prices, checks your listing. Suspicious listings go to the admin for approval.</p>
-    <p><span class="pill pill-ai">Recommendations</span><br>
-      Your item will be recommended to students who searched for similar things.</p>
-    <hr style="border:0;border-top:1px solid var(--line)">
-    <p class="small muted">💡 Try typing “whatsapp me” or a price higher than the MRP to see the spam checker react.</p>
-  </div>
+  <aside class="card" aria-labelledby="how-title">
+    <h2 id="how-title">How the AI helps</h2>
+    <dl class="explainer">
+      <dt><span class="pill pill-ai">Price suggestion</span></dt>
+      <dd>A <strong>linear regression</strong> model learns from every listing in the database how much of
+        its MRP an item keeps, based on condition, age and category.</dd>
+      <dt><span class="pill pill-ai">Spam check</span></dt>
+      <dd>A <strong>Naive Bayes</strong> text classifier, plus rules for phone numbers, links and unrealistic
+        prices, reviews your listing as you type. Suspicious listings wait for an admin.</dd>
+      <dt><span class="pill pill-ai">Recommendations</span></dt>
+      <dd>Once live, your item is recommended to students who searched for similar things.</dd>
+    </dl>
+    <hr>
+    <p class="small muted title-icon mb-0">{{ icon('info', 16) }}Try typing “whatsapp me” in the title to see the spam check react.</p>
+  </aside>
 </div>
 {% endblock %}
 
@@ -67,23 +91,43 @@
 <script>
 const form = document.getElementById('sellForm');
 const val = name => form.elements[name].value;
+const fmt = n => '₹' + Number(n).toLocaleString('en-IN');
+const esc = s => s.replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const sparkle = document.querySelector('#suggestBtn svg').outerHTML;
 
-async function suggestPrice() {
+document.getElementById('suggestBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('suggestBtn');
   const box = document.getElementById('priceResult');
-  box.innerHTML = '<span class="muted small">Thinking…</span>';
-  const res = await fetch('{{ url_for("api_predict_price") }}', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({original_price: val('original_price'), condition: val('condition'),
-                          age_months: val('age_months'), category_id: val('category_id')})
-  });
-  const d = await res.json();
-  if (d.error) { box.innerHTML = `<span style="color:var(--bad)">${d.error}</span>`; return; }
-  box.innerHTML = `Suggested price: <span class="suggested">₹${d.suggested.toLocaleString('en-IN')}</span>
-    <span class="muted small">(range ₹${d.low.toLocaleString('en-IN')} – ₹${d.high.toLocaleString('en-IN')},
-    about ${d.ratio_percent}% of MRP · trained on ${d.trained_on} listings)</span>
-    <br><button type="button" class="btn btn-outline btn-sm" style="margin-top:8px"
-      onclick="document.getElementById('price').value=${d.suggested}; spamCheck()">Use this price</button>`;
-}
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  btn.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Estimating…</span>';
+  try {
+    const res = await fetch('{{ url_for("api_predict_price") }}', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({original_price: val('original_price'), condition: val('condition'),
+                            age_months: val('age_months'), category_id: val('category_id')})
+    });
+    const d = await res.json();
+    if (d.error) {
+      box.innerHTML = `<span class="text-warn">Add the MRP and age first, then try again.</span>`;
+    } else {
+      box.innerHTML = `Suggested price <span class="suggested">${fmt(d.suggested)}</span>
+        <span class="hint">Range ${fmt(d.low)} to ${fmt(d.high)}, about ${d.ratio_percent}% of MRP.
+        Based on ${d.trained_on} listings.</span>
+        <button type="button" class="btn btn-outline btn-sm mt-3" id="usePrice">Use ${fmt(d.suggested)}</button>`;
+      document.getElementById('usePrice').addEventListener('click', () => {
+        const p = document.getElementById('price');
+        p.value = d.suggested; p.focus(); spamCheck();
+      });
+    }
+  } catch {
+    box.textContent = "Couldn't reach the price model. Check your connection and try again.";
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.innerHTML = sparkle + '<span>Suggest a price</span>';
+  }
+});
 
 let timer;
 async function spamCheck() {
@@ -97,9 +141,9 @@ async function spamCheck() {
   const d = await res.json();
   if (d.error) return;
   out.innerHTML = d.is_spam
-    ? `<div class="flash flash-warning" style="margin:0">⚠️ <strong>AI spam check: ${Math.round(d.score*100)}% suspicious.</strong>
-       This listing will need admin approval.<br>${d.reasons.join('<br>')}</div>`
-    : `<span class="pill pill-good">✓ AI spam check passed (${Math.round(d.score*100)}% suspicious)</span>`;
+    ? `<div class="callout callout-warn"><p><strong>This listing will need admin review</strong>
+       (spam check: ${Math.round(d.score * 100)}% suspicious).<br>${d.reasons.map(esc).join('<br>')}</p></div>`
+    : `<span class="pill pill-good">Spam check passed</span>`;
 }
 ['title', 'description', 'price', 'original_price'].forEach(n =>
   form.elements[n].addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(spamCheck, 500); }));

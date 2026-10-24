@@ -4,21 +4,27 @@
 {% block content %}
 <h1>All orders</h1>
 {% include "admin/_nav.html" %}
-<div class="card table-wrap" style="padding:0">
+<div class="card card-flush table-wrap">
   <table>
-    <tr><th>#</th><th>Item</th><th>Buyer</th><th>Seller</th><th>Price</th><th>Status</th><th>Rating</th><th>Date</th></tr>
+    <caption class="sr-only">All orders</caption>
+    <thead>
+      <tr><th scope="col" class="num">#</th><th scope="col">Item</th><th scope="col">Buyer</th><th scope="col">Seller</th>
+          <th scope="col" class="num">Price</th><th scope="col">Status</th><th scope="col">Rating</th><th scope="col">Ordered</th></tr>
+    </thead>
+    <tbody>
     {% for o in orders %}
     <tr>
-      <td>{{ o.order_id }}</td>
-      <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.title }}</a></td>
+      <td class="num muted">{{ o.order_id }}</td>
+      <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}">{{ o.title }}</a></td>
       <td>{{ o.buyer_name }}</td>
       <td>{{ o.seller_name }}</td>
-      <td>₹{{ o.price|inr }}</td>
+      <td class="num">₹{{ o.price|inr }}</td>
       <td>{{ status_pill(o.status) }}</td>
-      <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}-{% endif %}</td>
-      <td class="small muted">{{ o.ordered_at }}</td>
+      <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}<span class="muted">–</span>{% endif %}</td>
+      <td class="muted nowrap">{{ o.ordered_at|ago }}</td>
     </tr>
     {% endfor %}
+    </tbody>
   </table>
 </div>
 {% endblock %}

@@ -32,13 +32,13 @@ def main():
     check(c.get("/"), "Trending on campus")
     check(c.get("/login"), "Demo accounts")
     check(c.get("/search?q=calculator"), "Casio")
-    check(c.get("/product/1"), "Login to buy")
-    check(c.get("/sell", follow_redirects=True), "Please log in first")
+    check(c.get("/product/1"), "Log in to buy")
+    check(c.get("/sell", follow_redirects=True), "Log in to continue")
 
     # Rahul: personalised recommendations
     check(login(c, "rahul@college.edu"), "Recommended for you", "Because you searched")
     check(c.get("/search?q=arduno"), "Did you mean")       # typo -> AI fallback
-    check(c.get("/product/1"), "Similar items", "our price model estimates")
+    check(c.get("/product/1"), "Similar items", "Our price model estimates")
     check(c.get("/orders"), "Head First Java")
     check(c.get("/orders?tab=sales"))
     check(c.get("/wishlist"), "Dell Inspiron")
@@ -87,11 +87,11 @@ def main():
     check(c.post("/admin/database", data={"sql": "SELECT name FROM users"}), "Rahul Sharma")
     check(c.post("/admin/database", data={"sql": "DELETE FROM users"}), "Only SELECT")
     pid = db.execute("SELECT product_id FROM products WHERE status = 'pending' LIMIT 1").fetchone()[0]
-    check(c.post(f"/admin/listings/{pid}/approve", follow_redirects=True), "Listing available")
+    check(c.post(f"/admin/listings/{pid}/approve", follow_redirects=True), "Listing approved")
 
     # Block a user -> cannot log in
     c.post("/admin/users/6/toggle-block")
-    check(login(c, "neha@college.edu"), "blocked")
+    check(login(c, "neha@college.edu"), "blocked by an admin")
 
     # Register a new user
     c.get("/logout")

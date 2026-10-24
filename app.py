@@ -73,7 +73,7 @@ def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
         if g.user is None:
-            flash("Please log in first.", "warning")
+            flash("Log in to continue.", "info")
             return redirect(url_for("login", next=request.path))
         return view(*args, **kwargs)
     return wrapped
@@ -141,9 +141,9 @@ def login():
         email = request.form["email"].strip().lower()
         user = query("SELECT * FROM users WHERE email = ?", (email,), one=True)
         if user is None or not check_password_hash(user["password_hash"], request.form["password"]):
-            flash("Invalid email or password.", "danger")
+            flash("That email and password don't match. Check them and try again.", "danger")
         elif user["is_blocked"]:
-            flash("Your account has been blocked by the admin.", "danger")
+            flash("This account has been blocked by an admin. Contact the admin if you think this is a mistake.", "danger")
         else:
             session.clear()
             session["user_id"] = user["user_id"]
@@ -165,7 +165,7 @@ def register():
     if request.method == "POST":
         f = request.form
         if len(f["password"]) < 6:
-            flash("Password must be at least 6 characters.", "danger")
+            flash("Use at least 6 characters for your password.", "danger")
             return render_template("register.html", form=f)
         try:
             with get_db() as db:   # transaction: commit on success, rollback on error
@@ -179,11 +179,11 @@ def register():
                            (cur.lastrowid, "Welcome to CampusKart! Search for something to get "
                                            "AI recommendations."))
         except sqlite3.IntegrityError:
-            flash("An account with this email already exists.", "danger")
+            flash("An account with this email already exists. Log in instead, or use a different email.", "danger")
             return render_template("register.html", form=f)
         session.clear()
         session["user_id"] = cur.lastrowid
-        flash("Account created! Start by searching for something you need.", "success")
+        flash("Account created. Search for something you need and your recommendations will start adapting.", "success")
         return redirect(url_for("index"))
     return render_template("register.html", form={})
 
@@ -191,7 +191,7 @@ def register():
 @app.route("/logout")
 def logout():
     session.clear()
-    flash("Logged out.", "info")
+    flash("You've logged out. See you soon.", "info")
     return redirect(url_for("index"))
 
 
@@ -277,7 +277,7 @@ def _semantic_search(q, n=6):
 def clear_search_history():
     with get_db() as db:
         db.execute("DELETE FROM search_history WHERE user_id = ?", (g.user["user_id"],))
-    flash("Search history cleared. Recommendations will reset.", "info")
+    flash("Search history cleared. Your recommendations will start fresh.", "info")
     return redirect(request.referrer or url_for("index"))
 
 
@@ -334,7 +334,8 @@ def toggle_wishlist(pid):
                              (uid, pid)).rowcount
         if not removed:
             db.execute("INSERT INTO wishlist (user_id, product_id) VALUES (?, ?)", (uid, pid))
-    flash("Removed from wishlist." if removed else "Added to wishlist ❤", "info")
+    flash("Removed from your wishlist." if removed else "Saved to your wishlist. We'll tell you if it sells.",
+          "info" if removed else "success")
     return redirect(request.referrer or url_for("product", pid=pid))
 
 
@@ -354,9 +355,16 @@ def buy(pid):
             db.execute("INSERT INTO orders (product_id, buyer_id, price) VALUES (?, ?, ?)",
                        (pid, g.user["user_id"], p["price"]))
     except sqlite3.DatabaseError as e:
-        flash(f"Could not place order: {e}", "danger")
+        msg = str(e)
+        if "no longer available" in msg:
+            msg = "Someone bought this item just before you, so it's no longer available."
+        elif "own product" in msg:
+            msg = "You can't buy your own listing."
+        else:
+            msg = "We couldn't place your order. Please try again."
+        flash(msg, "danger")
         return redirect(url_for("product", pid=pid))
-    flash("Order placed! Contact the seller to arrange pickup on campus.", "success")
+    flash("Order placed. Call the seller (number below) to arrange a campus pickup.", "success")
     return redirect(url_for("orders"))
 
 
@@ -407,7 +415,7 @@ def complete_order(oid):
     if _own_order(oid)["status"] == "placed":
         with get_db() as db:
             db.execute("UPDATE orders SET status = 'completed' WHERE order_id = ?", (oid,))
-        flash("Marked as received. Please rate the seller!", "success")
+        flash("Marked as received. How was the seller? Leave a rating below.", "success")
     return redirect(url_for("orders"))
 
 
@@ -417,7 +425,7 @@ def review_order(oid):
     o = _own_order(oid)
     rating = request.form.get("rating", type=int)
     if o["status"] != "completed" or not rating:
-        flash("You can review only completed orders.", "warning")
+        flash("You can rate the seller after you mark the order as received.", "warning")
         return redirect(url_for("orders"))
     try:
         with get_db() as db:
@@ -425,7 +433,7 @@ def review_order(oid):
                        (oid, rating, request.form.get("comment", "").strip()))
         flash("Thanks for your review!", "success")
     except sqlite3.IntegrityError:
-        flash("You already reviewed this order.", "warning")
+        flash("You've already rated this order.", "info")
     return redirect(url_for("orders"))
 
 
@@ -448,7 +456,7 @@ def _listing_from_form(f):
 @login_required
 def sell():
     if g.user["role"] == "admin":
-        flash("Admins cannot sell items.", "warning")
+        flash("Admin accounts can't create listings. Log in as a student to sell.", "warning")
         return redirect(url_for("admin_dashboard"))
     if request.method == "POST":
         d = _listing_from_form(request.form)
@@ -465,10 +473,10 @@ def sell():
                  "pending" if check["is_spam"] else "available", int(check["is_spam"]),
                  check["score"], "; ".join(check["reasons"]) or None))
         if check["is_spam"]:
-            flash("Our AI flagged this listing for review: " + "; ".join(check["reasons"]) +
-                  ". An admin will approve it soon.", "warning")
+            flash("Your listing is waiting for review because our spam check flagged it ("
+                  + "; ".join(check["reasons"]).lower() + "). An admin will check it soon.", "warning")
             return redirect(url_for("my_listings"))
-        flash("Your item is live! 🎉", "success")
+        flash("Your item is live. Students searching for similar things will see it in their recommendations.", "success")
         return redirect(url_for("product", pid=cur.lastrowid))
     return render_template("sell.html", item=None)
 
@@ -497,7 +505,8 @@ def edit_listing(pid):
                               SELECT user_id, ? FROM users WHERE role = 'admin'""",
                            (f'AI flagged an edited listing: "{d["title"]}". Please review.',))
         flash("Listing updated." if not check["is_spam"] else
-              "Listing updated but flagged by AI for admin review.", "info")
+              "Listing updated. Our spam check flagged it, so an admin will review it before it goes live.",
+              "success" if not check["is_spam"] else "warning")
         return redirect(url_for("my_listings"))
     return render_template("sell.html", item=item)
 
@@ -509,7 +518,7 @@ def remove_listing(pid):
         db.execute("""UPDATE products SET status = 'removed'
                       WHERE product_id = ? AND seller_id = ? AND status IN ('available', 'pending')""",
                    (pid, g.user["user_id"]))
-    flash("Listing removed.", "info")
+    flash("Listing removed. Buyers can no longer see it.", "info")
     return redirect(url_for("my_listings"))
 
 
@@ -562,7 +571,7 @@ def profile():
         with get_db() as db:
             db.execute("UPDATE users SET name = ?, branch = ?, year = ?, phone = ? WHERE user_id = ?",
                        (f["name"].strip(), f["branch"], f.get("year", type=int), f["phone"].strip(), uid))
-        flash("Profile updated.", "success")
+        flash("Profile saved.", "success")
         return redirect(url_for("profile"))
 
     stats = query("""SELECT
@@ -630,7 +639,9 @@ def admin_listing_action(pid, action):
     with get_db() as db:   # trigger trg_listing_moderated notifies the seller
         db.execute("UPDATE products SET status = ?, is_flagged = 0 WHERE product_id = ?",
                    (new_status, pid))
-    flash(f"Listing {new_status}.", "success")
+    flash({"available": "Listing approved. It's live now and the seller has been notified.",
+           "rejected": "Listing rejected. The seller has been notified.",
+           "removed": "Listing removed."}[new_status], "success")
     return redirect(request.referrer or url_for("admin_listings"))
 
 
@@ -653,7 +664,10 @@ def admin_toggle_block(uid):
     with get_db() as db:
         db.execute("UPDATE users SET is_blocked = 1 - is_blocked WHERE user_id = ? AND role = 'user'",
                    (uid,))
-    flash("User status updated.", "success")
+    u = query("SELECT name, is_blocked FROM users WHERE user_id = ?", (uid,), one=True)
+    if u:
+        flash(f"{u['name']} is blocked and can't log in." if u["is_blocked"]
+              else f"{u['name']} is unblocked and can log in again.", "success")
     return redirect(url_for("admin_users"))
 
 
@@ -702,12 +716,12 @@ def admin_database():
 
 @app.errorhandler(403)
 def forbidden(_e):
-    return render_template("error.html", code=403, message="You don't have access to this page."), 403
+    return render_template("error.html", code=403, message="This page is only available to admins. Log in with an admin account to view it."), 403
 
 
 @app.errorhandler(404)
 def not_found(_e):
-    return render_template("error.html", code=404, message="Page not found."), 404
+    return render_template("error.html", code=404, message="The page may have been removed, or the link might be wrong."), 404
 
 
 if __name__ == "__main__":

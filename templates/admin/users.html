@@ -1,28 +1,39 @@
 {% extends "base.html" %}
+{% from "_macros.html" import icon %}
 {% block title %}Manage users{% endblock %}
 {% block content %}
 <h1>Users</h1>
 {% include "admin/_nav.html" %}
-<div class="card table-wrap" style="padding:0">
+<div class="card card-flush table-wrap">
   <table>
-    <tr><th>ID</th><th>Name</th><th>Email</th><th>Branch / Year</th><th>Listings</th><th>Purchases</th><th>Searches</th><th>Rating</th><th>Status</th><th></th></tr>
+    <caption class="sr-only">All users</caption>
+    <thead>
+      <tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Branch · Year</th><th scope="col" class="num">Listings</th>
+          <th scope="col" class="num">Purchases</th><th scope="col" class="num">Searches</th><th scope="col" class="num">Rating</th>
+          <th scope="col">Status</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+    </thead>
+    <tbody>
     {% for u in users %}
     <tr>
-      <td>{{ u.user_id }}</td>
-      <td>{{ u.name }} {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}</td>
-      <td class="small">{{ u.email }}</td>
-      <td class="small">{{ u.branch or '-' }}{% if u.year %} · {{ u.year }}{% endif %}</td>
-      <td>{{ u.listings }}</td>
-      <td>{{ u.purchases }}</td>
-      <td>{{ u.searches }}</td>
-      <td>{{ '★ %.1f'|format(u.rating) if u.rating else '-' }}</td>
+      <td class="nowrap"><strong>{{ u.name }}</strong> {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}</td>
+      <td class="muted">{{ u.email }}</td>
+      <td class="muted">{{ u.branch or '–' }}{% if u.year %} · {{ u.year }}{% endif %}</td>
+      <td class="num">{{ u.listings }}</td>
+      <td class="num">{{ u.purchases }}</td>
+      <td class="num">{{ u.searches }}</td>
+      <td class="num">{{ '%.1f'|format(u.rating) if u.rating else '–' }}</td>
       <td>{% if u.is_blocked %}<span class="pill pill-bad">Blocked</span>{% else %}<span class="pill pill-good">Active</span>{% endif %}</td>
       <td>{% if u.role == 'user' %}
-        <form method="post" action="{{ url_for('admin_toggle_block', uid=u.user_id) }}">
-          <button class="btn btn-sm {{ 'btn-good' if u.is_blocked else 'btn-danger' }}">{{ 'Unblock' if u.is_blocked else 'Block' }}</button>
+        <form method="post" action="{{ url_for('admin_toggle_block', uid=u.user_id) }}"
+              {% if not u.is_blocked %}data-confirm-title="Block {{ u.name }}?"
+              data-confirm="They'll be logged out and can't log in until you unblock them. Their listings stay as they are."
+              data-confirm-ok="Block user" data-confirm-cancel="Cancel" data-confirm-tone="danger"{% endif %}>
+          <button class="btn btn-sm {{ 'btn-outline' if u.is_blocked else 'btn-danger-outline' }}">
+            {{ 'Unblock' if u.is_blocked else 'Block' }}<span class="sr-only"> {{ u.name }}</span></button>
         </form>{% endif %}</td>
     </tr>
     {% endfor %}
+    </tbody>
   </table>
 </div>
 {% endblock %}

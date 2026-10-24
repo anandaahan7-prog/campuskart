@@ -1,54 +1,190 @@
+{% from "_macros.html" import icon %}
+{% set ep = request.endpoint %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#4f46e5">
   <title>{% block title %}CampusKart{% endblock %} · CampusKart</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛒</text></svg>">
 </head>
 <body>
-<nav class="navbar">
-  <div class="container">
-    <a class="logo" href="{{ url_for('index') }}">🛒 Campus<span>Kart</span></a>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header">
+  <div class="container header-row">
+    <a class="logo" href="{{ url_for('index') }}" aria-label="CampusKart home">
+      <span class="logo-mark">{{ icon('cart', 18) }}</span>
+      <span aria-hidden="true">Campus<span>Kart</span></span>
+    </a>
+
     {% if not g.user or g.user.role != 'admin' %}
-    <form class="nav-search" action="{{ url_for('search') }}">
-      <input name="q" placeholder="Search books, calculators, cycles..." value="{{ q or '' }}">
-      <button class="btn">Search</button>
+    <form class="search-bar" action="{{ url_for('search') }}" role="search">
+      <label for="site-search" class="sr-only">Search listings</label>
+      {{ icon('search', 18) }}
+      <input id="site-search" name="q" type="search" placeholder="Search books, calculators, cycles…"
+             value="{{ q or '' }}" autocomplete="off" enterkeyhint="search">
     </form>
     {% endif %}
-    <div class="nav-links">
+
+    <nav class="nav-links" aria-label="Main">
       {% if g.user %}
         {% if g.user.role == 'admin' %}
-          <a href="{{ url_for('admin_dashboard') }}">📊 Dashboard</a>
-          <a href="{{ url_for('admin_listings') }}">📦 Listings</a>
-          <a href="{{ url_for('admin_users') }}">👥 Users</a>
-          <a href="{{ url_for('admin_database') }}">🗄️ Database</a>
+          {# Admin sections live in the in-page segmented nav; the header only links back to it. #}
+          <a class="nav-link" href="{{ url_for('admin_dashboard') }}" {% if ep and ep.startswith('admin') %}aria-current="page"{% endif %}>{{ icon('shield', 16) }}Admin</a>
         {% else %}
-          <a href="{{ url_for('sell') }}">➕ Sell</a>
-          <a href="{{ url_for('my_listings') }}">My Listings</a>
-          <a href="{{ url_for('orders') }}">Orders</a>
-          <a href="{{ url_for('wishlist') }}">❤ Wishlist</a>
+          <a class="btn btn-sm btn-sell" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell</a>
+          {% for e, label in [('my_listings', 'My listings'), ('orders', 'Orders'), ('wishlist', 'Wishlist')] %}
+          <a class="nav-link" href="{{ url_for(e) }}" {% if ep == e %}aria-current="page"{% endif %}>{{ label }}</a>
+          {% endfor %}
         {% endif %}
-        <a href="{{ url_for('notifications') }}">🔔{% if unread_count %}<span class="badge-dot">{{ unread_count }}</span>{% endif %}</a>
-        <a href="{{ url_for('profile') }}">👤 {{ g.user.name.split()[0] }}</a>
-        <a href="{{ url_for('logout') }}">Logout</a>
+
+        <a class="icon-btn" href="{{ url_for('notifications') }}"
+           aria-label="Notifications{% if unread_count %}, {{ unread_count }} unread{% endif %}"
+           {% if ep == 'notifications' %}aria-current="page"{% endif %}>
+          {{ icon('bell', 20) }}
+          {% if unread_count %}<span class="badge-count" aria-hidden="true">{{ unread_count if unread_count < 10 else '9+' }}</span>{% endif %}
+        </a>
+
+        <div class="menu" data-menu>
+          <button class="menu-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="account-menu">
+            <span class="avatar" aria-hidden="true">{{ g.user.name[0] }}</span>
+            <span class="name">{{ g.user.name.split()[0] }}</span>
+            <span class="chev">{{ icon('chevron-down', 16) }}</span>
+            <span class="sr-only">Account menu</span>
+          </button>
+          <div class="menu-panel" id="account-menu">
+            <div class="menu-head">
+              <strong>{{ g.user.name }}</strong>
+              <span>{{ g.user.email }}</span>
+            </div>
+            <a class="menu-item" href="{{ url_for('profile') }}">{{ icon('user', 16) }}Profile</a>
+            {% if g.user.role == 'user' %}
+            <a class="menu-item" href="{{ url_for('my_listings') }}">{{ icon('package', 16) }}My listings</a>
+            <a class="menu-item" href="{{ url_for('orders') }}">{{ icon('bag', 16) }}Orders</a>
+            {% else %}
+            <a class="menu-item" href="{{ url_for('admin_dashboard') }}">{{ icon('dashboard', 16) }}Dashboard</a>
+            <a class="menu-item" href="{{ url_for('admin_database') }}">{{ icon('database', 16) }}Database explorer</a>
+            {% endif %}
+            <hr>
+            <a class="menu-item danger" href="{{ url_for('logout') }}">{{ icon('logout', 16) }}Log out</a>
+          </div>
+        </div>
       {% else %}
-        <a href="{{ url_for('login') }}">Login</a>
+        <a class="nav-link keep" href="{{ url_for('login') }}" {% if ep == 'login' %}aria-current="page"{% endif %}>Log in</a>
         <a class="btn btn-sm" href="{{ url_for('register') }}">Sign up</a>
       {% endif %}
-    </div>
+    </nav>
   </div>
-</nav>
+</header>
 
-<main class="container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for cat, msg in messages %}<div class="flash flash-{{ cat }}">{{ msg }}</div>{% endfor %}
-  {% endwith %}
-  {% block content %}{% endblock %}
+<main id="main" tabindex="-1">
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-stack">
+      {% set tone = {'success': ('good', 'check-circle', 'status'), 'info': ('info', 'info', 'status'),
+                     'warning': ('warn', 'alert', 'alert'), 'danger': ('bad', 'alert', 'alert')} %}
+      {% for cat, msg in messages %}
+      {% set t = tone.get(cat, tone['info']) %}
+      <div class="callout callout-{{ t[0] }} flash" role="{{ t[2] }}">
+        {{ icon(t[1], 18) }}
+        <p class="flash-text">{{ msg }}</p>
+        <button type="button" class="flash-close" aria-label="Dismiss message" data-dismiss>{{ icon('x', 16) }}</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </div>
 </main>
 
-<footer>CampusKart · AI-powered student marketplace · DBMS Project</footer>
+<footer class="site-footer">
+  <div class="container">
+    <span>CampusKart · AI-powered student marketplace</span>
+    <span>DBMS project · Flask · SQLite · scikit-learn</span>
+  </div>
+</footer>
+
+{% if g.user %}
+<nav class="tabbar" aria-label="Primary">
+  {% if g.user.role == 'admin' %}
+    {% set tabs = [('admin_dashboard', 'Dashboard', 'dashboard'), ('admin_listings', 'Listings', 'package'),
+                   ('admin_users', 'Users', 'users'), ('admin_orders', 'Orders', 'receipt'), ('admin_database', 'Database', 'database')] %}
+  {% else %}
+    {% set tabs = [('index', 'Home', 'home'), ('wishlist', 'Wishlist', 'heart'), ('sell', 'Sell', 'plus'),
+                   ('orders', 'Orders', 'bag'), ('my_listings', 'Listings', 'package')] %}
+  {% endif %}
+  {% for e, label, ic in tabs %}
+  <a href="{{ url_for(e) }}" class="{{ 'tab-sell' if e == 'sell' }}" {% if ep == e %}aria-current="page"{% endif %}>
+    {% if e == 'sell' %}<span class="tab-pill">{{ icon(ic, 20) }}</span>{% else %}{{ icon(ic, 22) }}{% endif %}
+    <span>{{ label }}</span>
+  </a>
+  {% endfor %}
+</nav>
+{% endif %}
+
+{# Accessible confirm dialog. Any <form data-confirm="..."> uses it instead of window.confirm(),
+   so the buttons can say what they do ("Buy for ₹650" / "Keep browsing"). #}
+<dialog class="confirm" id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-text">
+  <form method="dialog">
+    <div class="confirm-body">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-text"></p>
+    </div>
+    <div class="confirm-actions">
+      <button class="btn btn-outline" value="cancel" id="confirm-cancel">Cancel</button>
+      <button class="btn" value="ok" id="confirm-ok">Confirm</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  // Account menu: click / Escape / click-outside. Opens from its trigger (origin-aware).
+  document.querySelectorAll('[data-menu]').forEach(menu => {
+    const btn = menu.querySelector('.menu-trigger');
+    const set = open => {
+      menu.dataset.open = open;
+      btn.setAttribute('aria-expanded', open);
+      if (open) menu.querySelector('.menu-item')?.focus({ preventScroll: true });
+    };
+    btn.addEventListener('click', () => set(menu.dataset.open !== 'true'));
+    document.addEventListener('click', e => { if (!menu.contains(e.target)) set(false); });
+    menu.addEventListener('keydown', e => { if (e.key === 'Escape') { set(false); btn.focus(); } });
+  });
+
+  // Dismissible flash messages (exit is instant: the system is responding, keep it snappy).
+  document.querySelectorAll('[data-dismiss]').forEach(b =>
+    b.addEventListener('click', () => b.closest('.flash').remove()));
+
+  // Confirm dialog for destructive or important form submits.
+  const dlg = document.getElementById('confirm-dialog');
+  let pending = null;
+  document.addEventListener('submit', e => {
+    const f = e.target;
+    if (!f.dataset.confirm || f.dataset.confirmed || !dlg.showModal) return;
+    e.preventDefault();
+    pending = f;
+    dlg.querySelector('#confirm-title').textContent = f.dataset.confirmTitle || 'Are you sure?';
+    dlg.querySelector('#confirm-text').textContent = f.dataset.confirm;
+    const ok = dlg.querySelector('#confirm-ok');
+    ok.textContent = f.dataset.confirmOk || 'Confirm';
+    ok.className = 'btn' + (f.dataset.confirmTone === 'danger' ? ' btn-danger' : '');
+    dlg.querySelector('#confirm-cancel').textContent = f.dataset.confirmCancel || 'Cancel';
+    dlg.returnValue = '';
+    dlg.showModal();
+    dlg.querySelector('#confirm-cancel').focus();
+  });
+  dlg?.addEventListener('close', () => {
+    if (dlg.returnValue === 'ok' && pending) { pending.dataset.confirmed = '1'; pending.requestSubmit(); }
+    pending = null;
+  });
+})();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

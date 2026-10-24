@@ -1,71 +1,98 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill, stars %}
+{% from "_macros.html" import status_pill, stars, icon, empty_state %}
 {% block title %}Orders{% endblock %}
 {% block content %}
 <h1>Orders</h1>
-<div class="tabs">
-  <a href="{{ url_for('orders', tab='purchases') }}" class="{{ 'active' if tab == 'purchases' }}">🛍️ Purchases ({{ purchases|length }})</a>
-  <a href="{{ url_for('orders', tab='sales') }}" class="{{ 'active' if tab == 'sales' }}">💰 Sales ({{ sales|length }})</a>
-</div>
+<nav class="tabs" aria-label="Order type">
+  <a href="{{ url_for('orders', tab='purchases') }}" {% if tab == 'purchases' %}aria-current="page"{% endif %}>
+    {{ icon('bag', 16) }}Purchases <span class="count">{{ purchases|length }}</span></a>
+  <a href="{{ url_for('orders', tab='sales') }}" {% if tab == 'sales' %}aria-current="page"{% endif %}>
+    {{ icon('tag', 16) }}Sales <span class="count">{{ sales|length }}</span></a>
+</nav>
 
 {% if tab == 'purchases' %}
   {% if purchases %}
-  <div class="card table-wrap" style="padding:0">
+  <div class="card card-flush table-wrap">
     <table>
-      <tr><th>#</th><th>Item</th><th>Seller</th><th>Price</th><th>Status</th><th>Date</th><th>Action</th></tr>
+      <caption class="sr-only">Items you bought</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Seller</th><th scope="col" class="num">Price</th>
+            <th scope="col">Status</th><th scope="col">Ordered</th><th scope="col">Next step</th></tr>
+      </thead>
+      <tbody>
       {% for o in purchases %}
       <tr>
-        <td>{{ o.order_id }}</td>
-        <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.category_icon }} {{ o.title }}</a></td>
-        <td>{{ o.seller_name }}{% if o.status == 'placed' %}<br><span class="small muted">📞 {{ o.seller_phone }}</span>{% endif %}</td>
-        <td>₹{{ o.price|inr }}</td>
+        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}"><span aria-hidden="true">{{ o.category_icon }}</span>{{ o.title }}</a>
+            <span class="subtext">Order #{{ o.order_id }}</span></td>
+        <td>{{ o.seller_name }}
+          {% if o.status == 'placed' %}<a class="subtext" href="tel:{{ o.seller_phone }}">{{ icon('phone', 12) }} {{ o.seller_phone }}</a>{% endif %}</td>
+        <td class="num">₹{{ o.price|inr }}</td>
         <td>{{ status_pill(o.status) }}</td>
-        <td class="small muted">{{ o.ordered_at|ago }}</td>
+        <td class="muted nowrap">{{ o.ordered_at|ago }}</td>
         <td>
           {% if o.status == 'placed' %}
-            <form class="inline" method="post" action="{{ url_for('complete_order', oid=o.order_id) }}">
-              <button class="btn btn-good btn-sm">Mark received</button></form>
-            <form class="inline" method="post" action="{{ url_for('cancel_order', oid=o.order_id) }}" onsubmit="return confirm('Cancel this order?')">
-              <button class="btn btn-outline btn-sm">Cancel</button></form>
+            <div class="row-actions start">
+              <form class="inline" method="post" action="{{ url_for('complete_order', oid=o.order_id) }}">
+                <button class="btn btn-good btn-sm">{{ icon('check', 14) }}Mark as received</button></form>
+              <form class="inline" method="post" action="{{ url_for('cancel_order', oid=o.order_id) }}"
+                    data-confirm-title="Cancel this order?"
+                    data-confirm="“{{ o.title }}” will go back on sale and {{ o.seller_name }} will be notified."
+                    data-confirm-ok="Cancel order" data-confirm-cancel="Keep order" data-confirm-tone="danger">
+                <button class="btn btn-ghost btn-sm">Cancel order</button></form>
+            </div>
           {% elif o.status == 'completed' and o.rating %}
             {{ stars(o.rating) }}
           {% elif o.status == 'completed' %}
-            <form method="post" action="{{ url_for('review_order', oid=o.order_id) }}" style="display:flex;gap:6px;flex-wrap:wrap">
-              <select name="rating" style="width:auto;padding:5px">
-                {% for r in range(5, 0, -1) %}<option value="{{ r }}">{{ '★' * r }}</option>{% endfor %}
+            <form method="post" action="{{ url_for('review_order', oid=o.order_id) }}" class="field-inline">
+              <label for="rating-{{ o.order_id }}" class="sr-only">Rating for {{ o.seller_name }}</label>
+              <select id="rating-{{ o.order_id }}" name="rating">
+                {% for r in range(5, 0, -1) %}<option value="{{ r }}">{{ r }} star{{ '' if r == 1 else 's' }}</option>{% endfor %}
               </select>
-              <input name="comment" placeholder="Comment" style="width:140px;padding:5px 8px">
-              <button class="btn btn-sm">Rate</button>
+              <label for="comment-{{ o.order_id }}" class="sr-only">Comment (optional)</label>
+              <input id="comment-{{ o.order_id }}" name="comment" placeholder="Add a comment (optional)">
+              <button class="btn btn-sm">Rate seller</button>
             </form>
+          {% else %}
+            <span class="muted">No action needed</span>
           {% endif %}
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
   {% else %}
-  <div class="card empty"><div class="emoji">🛍️</div>No purchases yet. <a href="{{ url_for('search') }}">Browse items</a></div>
+  {{ empty_state('bag', 'No purchases yet', "When you buy something, you'll track pickup and rate the seller here.",
+                 'Browse items', url_for('search')) }}
   {% endif %}
 {% else %}
   {% if sales %}
-  <div class="card table-wrap" style="padding:0">
+  <div class="card card-flush table-wrap">
     <table>
-      <tr><th>#</th><th>Item</th><th>Buyer</th><th>Price</th><th>Status</th><th>Rating</th><th>Date</th></tr>
+      <caption class="sr-only">Items you sold</caption>
+      <thead>
+        <tr><th scope="col">Item</th><th scope="col">Buyer</th><th scope="col" class="num">Price</th>
+            <th scope="col">Status</th><th scope="col">Rating</th><th scope="col">Ordered</th></tr>
+      </thead>
+      <tbody>
       {% for o in sales %}
       <tr>
-        <td>{{ o.order_id }}</td>
-        <td><a href="{{ url_for('product', pid=o.product_id) }}">{{ o.category_icon }} {{ o.title }}</a></td>
-        <td>{{ o.buyer_name }}{% if o.status == 'placed' %}<br><span class="small muted">📞 {{ o.buyer_phone }}</span>{% endif %}</td>
-        <td>₹{{ o.price|inr }}</td>
+        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}"><span aria-hidden="true">{{ o.category_icon }}</span>{{ o.title }}</a>
+            <span class="subtext">Order #{{ o.order_id }}</span></td>
+        <td>{{ o.buyer_name }}
+          {% if o.status == 'placed' %}<a class="subtext" href="tel:{{ o.buyer_phone }}">{{ icon('phone', 12) }} {{ o.buyer_phone }}</a>{% endif %}</td>
+        <td class="num">₹{{ o.price|inr }}</td>
         <td>{{ status_pill(o.status) }}</td>
-        <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}<span class="muted small">-</span>{% endif %}</td>
-        <td class="small muted">{{ o.ordered_at|ago }}</td>
+        <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}<span class="muted">Not rated yet</span>{% endif %}</td>
+        <td class="muted nowrap">{{ o.ordered_at|ago }}</td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
   {% else %}
-  <div class="card empty"><div class="emoji">💰</div>No sales yet.</div>
+  {{ empty_state('tag', 'No sales yet', "When someone buys your item, you'll see their number here to arrange pickup.",
+                 'Sell an item', url_for('sell')) }}
   {% endif %}
 {% endif %}
 {% endblock %}

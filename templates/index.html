@@ -1,77 +1,96 @@
 {% extends "base.html" %}
-{% from "_macros.html" import product_card %}
+{% from "_macros.html" import product_card, icon, ai_badge %}
 {% block title %}Home{% endblock %}
 {% block content %}
 
 {% if not g.user %}
-<div class="hero">
+<section class="hero" aria-labelledby="hero-title">
   <div>
-    <h1>Buy & sell within your campus</h1>
-    <p>Second-hand books, calculators, lab coats, cycles and hostel essentials from your seniors,
-       with AI recommendations, fair-price suggestions and spam protection.</p>
-    <a class="btn btn-lg" href="{{ url_for('register') }}">Get started</a>
-    <a class="btn btn-lg btn-ghost" href="{{ url_for('login') }}">Login</a>
+    <h1 id="hero-title">Your seniors' books, calculators and cycles, a few steps away</h1>
+    <p>Buy and sell second-hand items within your campus. Personalised picks, fair-price suggestions
+       and spam checks are built in.</p>
+    <div class="cluster">
+      <a class="btn btn-lg" href="{{ url_for('register') }}">Create free account</a>
+      <a class="btn btn-lg btn-ghost" href="{{ url_for('login') }}">Log in</a>
+    </div>
+    <div class="hero-stats">
+      <span><strong>{{ cat_counts.values()|sum }}</strong>items for sale</span>
+      <span><strong>{{ categories|length }}</strong>categories</span>
+      <span><strong>3</strong>AI features</span>
+    </div>
   </div>
-  <div class="hero-emoji">📚🧮🚲</div>
-</div>
+  <div class="hero-tiles" aria-hidden="true">
+    {% for c in categories[:6] %}<div class="hero-tile">{{ c.icon }}</div>{% endfor %}
+  </div>
+</section>
 {% else %}
-<h1>Hi {{ g.user.name.split()[0] }} 👋</h1>
-<p class="muted">{{ g.user.branch }}{% if g.user.year %} · Year {{ g.user.year }}{% endif %}</p>
+<div class="greeting">
+  <div>
+    <h1>Hi {{ g.user.name.split()[0] }}</h1>
+    <p>{{ g.user.branch }}{% if g.user.year %} · Year {{ g.user.year }}{% endif %}</p>
+  </div>
+</div>
 {% endif %}
 
 {% if recent_searches %}
-<div class="section" style="margin-top:18px">
+<section class="section" aria-labelledby="recent-title">
   <div class="section-head">
-    <h3>🕑 Your recent searches</h3>
+    <h2 id="recent-title" class="title-icon h3">{{ icon('clock', 18) }}Your recent searches</h2>
     <form method="post" action="{{ url_for('clear_search_history') }}" class="inline">
-      <button class="btn btn-outline btn-sm">Clear history</button>
+      <button class="btn btn-ghost btn-sm">Clear history</button>
     </form>
   </div>
   <div class="chips">
-    {% for s in recent_searches %}<a class="chip" href="{{ url_for('search', q=s.query) }}">{{ s.query }}</a>{% endfor %}
+    {% for s in recent_searches %}
+    <a class="chip" href="{{ url_for('search', q=s.query) }}">{{ icon('search', 14) }}{{ s.query }}</a>
+    {% endfor %}
   </div>
-</div>
+</section>
 {% endif %}
 
-<div class="section">
+<section class="section" aria-labelledby="recs-title">
   <div class="section-head">
-    <h2>{% if personalised %}✨ Recommended for you{% else %}🔥 Trending on campus{% endif %}</h2>
+    <h2 id="recs-title" class="title-icon">
+      {% if personalised %}{{ icon('sparkles', 20) }}Recommended for you{% else %}{{ icon('flame', 20) }}Trending on campus{% endif %}
+    </h2>
   </div>
   {% if personalised %}
-  <div class="ai-banner" style="margin-bottom:14px">
-    <span class="ai-icon">AI</span>
-    Picked using your search history, viewed items and wishlist (TF-IDF + cosine similarity).
+  <div class="callout callout-ai mb-4">
+    {{ ai_badge() }}
+    <p>Picked from your searches, the items you viewed and your wishlist. Each card says why it's here.</p>
   </div>
   {% elif g.user and g.user.role == 'user' %}
-  <div class="ai-banner" style="margin-bottom:14px">
-    <span class="ai-icon">AI</span>
-    No history yet, so these are the most viewed items. Search or browse a few items and your feed becomes personalised.
+  <div class="callout callout-ai mb-4">
+    {{ ai_badge() }}
+    <p>These are the most-viewed items this month. Search for something you need and this list
+       will start matching your interests.</p>
   </div>
   {% endif %}
   <div class="grid">
     {% for r in recs %}{{ product_card(r.product, r.reason if personalised else None) }}{% endfor %}
   </div>
-</div>
+</section>
 
-<div class="section">
-  <div class="section-head"><h2>Shop by category</h2></div>
+<section class="section" aria-labelledby="cats-title">
+  <div class="section-head"><h2 id="cats-title">Shop by category</h2></div>
   <div class="cat-grid">
     {% for c in categories %}
     <a class="cat-tile" href="{{ url_for('search', category=c.category_id) }}">
-      <span class="emoji">{{ c.icon }}</span>{{ c.name }}
-      <div class="count">{{ cat_counts.get(c.category_id, 0) }} items</div>
+      <span class="emoji" aria-hidden="true">{{ c.icon }}</span>
+      <span>{{ c.name }}</span>
+      <span class="count">{{ cat_counts.get(c.category_id, 0) }} items</span>
     </a>
     {% endfor %}
   </div>
-</div>
+</section>
 
-<div class="section">
+<section class="section" aria-labelledby="latest-title">
   <div class="section-head">
-    <h2>🆕 Just listed</h2>
-    <a href="{{ url_for('search') }}">View all →</a>
+    <h2 id="latest-title">Just listed</h2>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('search') }}">View all items {{ icon('arrow-right', 14) }}</a>
   </div>
   <div class="grid">
     {% for p in latest %}{{ product_card(p) }}{% endfor %}
   </div>
-</div>
+</section>
 {% endblock %}

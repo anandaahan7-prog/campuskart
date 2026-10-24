@@ -1,10 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Error {{ code }}{% endblock %}
+{% from "_macros.html" import icon %}
+{% block title %}{{ 'Page not found' if code == 404 else 'Access denied' }}{% endblock %}
 {% block content %}
-<div class="card empty">
-  <div class="emoji">🚧</div>
-  <h1>{{ code }}</h1>
+<div class="card empty narrow">
+  <div class="empty-icon">{{ icon('alert' if code == 403 else 'search', 24) }}</div>
+  <h1 class="h2">{{ 'Page not found' if code == 404 else 'You can\'t view this page' }}</h1>
   <p>{{ message }}</p>
-  <a class="btn" href="{{ url_for('index') }}">Go home</a>
+  <a class="btn" href="{{ url_for('index') }}">Go to home page</a>
 </div>
 {% endblock %}

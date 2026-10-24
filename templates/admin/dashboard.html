@@ -1,69 +1,80 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill, stars %}
+{% from "_macros.html" import status_pill, stars, icon %}
 {% block title %}Admin dashboard{% endblock %}
 {% block content %}
 <h1>Admin dashboard</h1>
 {% include "admin/_nav.html" %}
 
 {% if stats.pending_listings %}
-<div class="flash flash-warning">
-  ⚠️ <strong>{{ stats.pending_listings }} listing(s)</strong> were flagged by the AI spam detector and need review.
-  <a href="{{ url_for('admin_listings') }}">Review now →</a>
+<div class="callout callout-warn mb-4" role="status">
+  {{ icon('alert', 18) }}
+  <p class="flash-text"><strong>{{ stats.pending_listings }} listing{{ '' if stats.pending_listings == 1 else 's' }} need{{ 's' if stats.pending_listings == 1 else '' }} review.</strong>
+    The spam detector flagged {{ 'it' if stats.pending_listings == 1 else 'them' }} before going live.</p>
+  <a class="btn btn-sm btn-outline" href="{{ url_for('admin_listings') }}">Review now</a>
 </div>
 {% endif %}
 
 <div class="stats">
   <div class="stat"><div class="label">Students</div><div class="value">{{ stats.total_users }}</div></div>
   <div class="stat"><div class="label">Live listings</div><div class="value">{{ stats.live_listings }}</div></div>
-  <div class="stat"><div class="label">Pending review</div><div class="value" style="color:var(--warn)">{{ stats.pending_listings }}</div></div>
+  <div class="stat stat-warn"><div class="label">Waiting for review</div><div class="value">{{ stats.pending_listings }}</div></div>
   <div class="stat"><div class="label">Orders</div><div class="value">{{ stats.total_orders }}</div></div>
   <div class="stat"><div class="label">Total sales</div><div class="value">₹{{ stats.total_sales|inr }}</div></div>
   <div class="stat"><div class="label">Searches</div><div class="value">{{ stats.total_searches }}</div></div>
 </div>
-<p class="small muted">Stats come from the view <code>v_admin_stats</code>.</p>
+<p class="xs muted mt-2">Figures come from the view <code>v_admin_stats</code>.</p>
 
 <div class="two-col section">
-  <div class="card">
-    <h2>Sales by category</h2>
-    <p class="small muted">From view <code>v_category_sales</code> (LEFT JOIN + GROUP BY)</p>
+  <section class="card" aria-labelledby="sales-title">
+    <h2 id="sales-title" class="title-icon">{{ icon('chart', 18) }}Sales by category</h2>
+    <p class="xs muted">From the view <code>v_category_sales</code> (LEFT JOIN + GROUP BY).</p>
     {% for c in cat_sales %}
     <div class="bar-row">
-      <span>{{ c.icon }} {{ c.name }}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:{{ (c.revenue / max_rev * 100)|round }}%"></div></div>
-      <span class="small">₹{{ c.revenue|inr }} · {{ c.items_sold }}</span>
+      <span><span aria-hidden="true">{{ c.icon }}</span> {{ c.name }}</span>
+      <div class="bar-track" aria-hidden="true"><div class="bar-fill" style="width:{{ (c.revenue / max_rev * 100)|round }}%"></div></div>
+      <span class="bar-value">₹{{ c.revenue|inr }} <span class="muted">· {{ c.items_sold }} sold</span></span>
     </div>
     {% endfor %}
-  </div>
+  </section>
 
-  <div class="card">
-    <h2>🔍 What students search for</h2>
-    <p class="small muted">Top queries from <code>search_history</code>. Shows what is in demand on campus.</p>
+  <section class="card" aria-labelledby="searches-title">
+    <h2 id="searches-title" class="title-icon">{{ icon('search', 18) }}What students search for</h2>
+    <p class="xs muted">Top queries from <code>search_history</code>, a live signal of demand on campus.</p>
     <table>
+      <caption class="sr-only">Top searches</caption>
+      <thead><tr><th scope="col">Search</th><th scope="col" class="num">Times</th></tr></thead>
+      <tbody>
       {% for s in top_searches %}
-      <tr><td>{{ s.query }}</td><td style="text-align:right"><span class="pill pill-brand">{{ s.n }}×</span></td></tr>
+      <tr><td>{{ s.query }}</td><td class="num"><span class="pill pill-brand">{{ s.n }}×</span></td></tr>
       {% endfor %}
+      </tbody>
     </table>
-  </div>
+  </section>
 </div>
 
 <div class="two-col section">
-  <div class="card table-wrap">
-    <h2>Recent orders</h2>
+  <section class="card card-flush table-wrap" aria-labelledby="recent-orders-title">
+    <h2 id="recent-orders-title" class="title-icon card-title">{{ icon('receipt', 18) }}Recent orders</h2>
     <table>
-      <tr><th>Item</th><th>Buyer</th><th>Price</th><th>Status</th></tr>
+      <thead><tr><th scope="col">Item</th><th scope="col">Buyer</th><th scope="col" class="num">Price</th><th scope="col">Status</th></tr></thead>
+      <tbody>
       {% for o in recent_orders %}
-      <tr><td>{{ o.title }}</td><td>{{ o.buyer_name }}</td><td>₹{{ o.price|inr }}</td><td>{{ status_pill(o.status) }}</td></tr>
+      <tr><td>{{ o.title }}</td><td>{{ o.buyer_name }}</td><td class="num">₹{{ o.price|inr }}</td><td>{{ status_pill(o.status) }}</td></tr>
       {% endfor %}
+      </tbody>
     </table>
-  </div>
-  <div class="card">
-    <h2>⭐ Top rated sellers</h2>
+  </section>
+  <section class="card" aria-labelledby="sellers-title">
+    <h2 id="sellers-title" class="title-icon">{{ icon('star', 18) }}Top-rated sellers</h2>
     <table>
+      <thead><tr><th scope="col">Seller</th><th scope="col" class="num">Rating</th></tr></thead>
+      <tbody>
       {% for s in top_sellers %}
-      <tr><td>{{ s.name }}<br><span class="small muted">{{ s.branch }}</span></td>
-          <td style="text-align:right">{{ stars(s.avg_rating) }}<br><span class="small muted">{{ s.avg_rating }} · {{ s.review_count }} reviews</span></td></tr>
+      <tr><td>{{ s.name }}<span class="subtext">{{ s.branch }}</span></td>
+          <td class="num">{{ stars(s.avg_rating) }}<span class="subtext">{{ s.avg_rating }} · {{ s.review_count }} review{{ '' if s.review_count == 1 else 's' }}</span></td></tr>
       {% endfor %}
+      </tbody>
     </table>
-  </div>
+  </section>
 </div>
 {% endblock %}

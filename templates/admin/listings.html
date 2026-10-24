@@ -1,67 +1,86 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill %}
+{% from "_macros.html" import status_pill, icon, ai_badge %}
 {% block title %}Manage listings{% endblock %}
 {% block content %}
 <h1>Listings</h1>
 {% include "admin/_nav.html" %}
 
-<div class="card section" style="margin-top:0">
+<section class="card" aria-labelledby="flagged-title">
   <div class="section-head">
-    <h2>⚠️ Flagged by AI ({{ pending|length }})</h2>
-    <span class="pill pill-ai">Naive Bayes spam detector</span>
+    <h2 id="flagged-title" class="title-icon">{{ icon('alert', 18) }}Flagged by AI <span class="pill pill-warn">{{ pending|length }}</span></h2>
+    {{ ai_badge('Naive Bayes spam detector') }}
   </div>
   {% if pending %}
   <div class="table-wrap">
     <table>
-      <tr><th>Listing</th><th>Seller</th><th>Price / MRP</th><th>Spam score</th><th>Why flagged</th><th>Action</th></tr>
+      <caption class="sr-only">Listings waiting for review</caption>
+      <thead>
+        <tr><th scope="col">Listing</th><th scope="col">Seller</th><th scope="col" class="num">Price / MRP</th>
+            <th scope="col">Spam score</th><th scope="col">Why it was flagged</th><th scope="col"><span class="sr-only">Decision</span></th></tr>
+      </thead>
+      <tbody>
       {% for p in pending %}
       <tr>
-        <td><a href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a><br><span class="small muted">{{ p.description[:90] }}…</span></td>
+        <td><a class="item-link" href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a>
+            <span class="subtext">{{ p.description|truncate(90) }}</span></td>
         <td>{{ p.seller_name }}</td>
-        <td>₹{{ p.price|inr }} / ₹{{ p.original_price|inr }}</td>
+        <td class="num nowrap">₹{{ p.price|inr }} / ₹{{ p.original_price|inr }}</td>
         <td><span class="pill pill-bad">{{ (p.spam_score * 100)|round|int }}%</span></td>
-        <td class="small">{{ (p.flag_reason or '')|replace('; ', '<br>')|safe }}</td>
-        <td style="white-space:nowrap">
-          <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='approve') }}">
-            <button class="btn btn-good btn-sm">Approve</button></form>
-          <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='reject') }}">
-            <button class="btn btn-danger btn-sm">Reject</button></form>
+        <td class="xs">{% for r in (p.flag_reason or '').split('; ') if r %}<span class="subtext">• {{ r }}</span>{% endfor %}</td>
+        <td>
+          <div class="row-actions">
+            <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='approve') }}">
+              <button class="btn btn-good btn-sm">{{ icon('check', 14) }}Approve<span class="sr-only"> {{ p.title }}</span></button></form>
+            <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='reject') }}"
+                  data-confirm-title="Reject this listing?" data-confirm="“{{ p.title }}” won't go live. {{ p.seller_name }} will be notified."
+                  data-confirm-ok="Reject listing" data-confirm-cancel="Go back" data-confirm-tone="danger">
+              <button class="btn btn-danger btn-sm">{{ icon('x', 14) }}Reject<span class="sr-only"> {{ p.title }}</span></button></form>
+          </div>
         </td>
       </tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
   {% else %}
-  <p class="muted">Nothing to review. 🎉</p>
+  <p class="muted mb-0 title-icon">{{ icon('check-circle', 18) }}Nothing to review. New flagged listings will appear here.</p>
   {% endif %}
-</div>
+</section>
 
-<div class="section">
-  <div class="tabs">
-    {% for s in ['available', 'sold', 'rejected', 'removed'] %}
-    <a href="{{ url_for('admin_listings', status=s) }}" class="{{ 'active' if status == s }}">{{ s|capitalize }}</a>
+<section class="section" aria-labelledby="all-title">
+  <h2 id="all-title" class="sr-only">All listings</h2>
+  <nav class="tabs" aria-label="Filter by status">
+    {% for s, label in [('available', 'Live'), ('sold', 'Sold'), ('rejected', 'Rejected'), ('removed', 'Removed')] %}
+    <a href="{{ url_for('admin_listings', status=s) }}" {% if status == s %}aria-current="page"{% endif %}>{{ label }}</a>
     {% endfor %}
-  </div>
-  <div class="card table-wrap" style="padding:0">
+  </nav>
+  <div class="card card-flush table-wrap">
     <table>
-      <tr><th>ID</th><th>Listing</th><th>Category</th><th>Seller</th><th>Price</th><th>Status</th><th>Listed</th><th></th></tr>
+      <thead>
+        <tr><th scope="col" class="num">ID</th><th scope="col">Listing</th><th scope="col">Category</th><th scope="col">Seller</th>
+            <th scope="col" class="num">Price</th><th scope="col">Status</th><th scope="col">Listed</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
       {% for p in listings %}
       <tr>
-        <td>{{ p.product_id }}</td>
-        <td><a href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a></td>
-        <td>{{ p.category_icon }} {{ p.category_name }}</td>
+        <td class="num muted">{{ p.product_id }}</td>
+        <td><a class="item-link" href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a></td>
+        <td><span aria-hidden="true">{{ p.category_icon }}</span> {{ p.category_name }}</td>
         <td>{{ p.seller_name }}</td>
-        <td>₹{{ p.price|inr }}</td>
+        <td class="num">₹{{ p.price|inr }}</td>
         <td>{{ status_pill(p.status) }}</td>
-        <td class="small muted">{{ p.created_at|ago }}</td>
+        <td class="muted nowrap">{{ p.created_at|ago }}</td>
         <td>{% if p.status == 'available' %}
-          <form method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='remove') }}" onsubmit="return confirm('Remove this listing?')">
-            <button class="btn btn-outline btn-sm">Remove</button></form>{% endif %}</td>
+          <form method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='remove') }}"
+                data-confirm-title="Remove this listing?" data-confirm="“{{ p.title }}” will be taken down for everyone."
+                data-confirm-ok="Remove listing" data-confirm-cancel="Keep it" data-confirm-tone="danger">
+            <button class="btn btn-danger-outline btn-sm">Remove<span class="sr-only"> {{ p.title }}</span></button></form>{% endif %}</td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="empty">No listings.</td></tr>
+      <tr><td colspan="8" class="muted">No {{ status }} listings.</td></tr>
       {% endfor %}
+      </tbody>
     </table>
   </div>
-</div>
+</section>
 {% endblock %}

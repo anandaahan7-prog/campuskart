@@ -80,7 +80,7 @@
 
 {# ---------------------------------------------------------------------------
    A listing is a paper slip. The whole slip is one link; screen readers get a
-   clean name plus price context ("MRP ..."), and the tear-off tabs are decoration.
+   clean name plus price context ("MRP ..."). Its one tear-off tab is gone once it sells.
    --------------------------------------------------------------------------- #}
 {% macro product_card(p, reason=None, i=0, tabs=True) %}
 {% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
@@ -100,7 +100,7 @@
       {% if p.seller_rating %}<span class="rating">{{ icon('star', 12) }}{{ p.seller_rating }}<span class="sr-only"> seller rating</span></span>{% endif %}
     </span>
   </span>
-  {% if tabs %}<span class="tearoffs" aria-hidden="true">{% for _ in range(4) %}<span class="tab"><span>{{ p.seller_name.split()[0] }}</span></span>{% endfor %}</span>{% endif %}
+  {% if tabs %}<span class="tearoff{{ ' is-torn' if p.status != 'available' }}" aria-hidden="true"><span class="tab-slot"><span class="tab">{{ p.seller_name.split()[0] }} · ₹{{ p.price|inr }}</span></span></span>{% endif %}
 </a>
 {% endmacro %}
 

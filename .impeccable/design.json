@@ -118,7 +118,7 @@
       "Pushpin red for the one next action only",
       "AI output handwritten in ballpoint blue",
       "States as outlined rubber stamps",
-      "The tear-off tab as the signature interaction"
+      "One tear-off tab per slip: present while for sale, torn off when sold"
     ],
     "rules": [
       { "name": "The Pushpin Rule", "body": "Red appears once per screen, on the action that moves the deal forward.", "section": "colors" },

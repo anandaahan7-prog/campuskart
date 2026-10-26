@@ -391,23 +391,22 @@ textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
 .rating { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-2); font-weight: 600; flex-shrink: 0; }
 .rating .icon { color: var(--star); fill: var(--star); }
 
-/* Tear-off tabs: each one carries the price and the seller, like the real ones */
-.tearoffs { position: relative; display: grid; grid-template-columns: repeat(var(--tabs, 4), minmax(0, 1fr)); }
+/* The tear-off tab: one per slip, because an item sells once. It carries the seller's
+   name and price; buying tears it off and the seller's number is in your hand. */
+.tearoff { position: relative; display: flex; justify-content: center; }
+.tab-slot { position: relative; display: flex; min-width: 56%; max-width: 100%; }
 .tab {
-  position: relative; display: grid; place-items: center; height: 76px; overflow: hidden;
-  background: var(--slip, var(--paper)); color: var(--ink-2);
+  flex: 1; display: grid; place-items: center; height: 40px; padding: 0 var(--s-3); overflow: hidden;
+  background: var(--slip, var(--paper)); color: var(--ink-2); border-radius: 0 0 2px 2px;
   border-top: 1.5px dashed color-mix(in srgb, var(--ink) 30%, transparent);
-  font-size: var(--fs-13); font-weight: 600; font-stretch: var(--condensed); white-space: nowrap;
+  font-size: var(--fs-13); font-weight: 600; font-stretch: var(--condensed); white-space: nowrap; line-height: 1.25; text-align: center;
 }
-.tab + .tab { border-left: 1px dashed color-mix(in srgb, var(--ink) 22%, transparent); }
-.tab:last-child { border-radius: 0 0 2px 0; }
-.tab:first-child { border-radius: 0 0 0 2px; }
-.tab > span { writing-mode: vertical-rl; transform: rotate(180deg); }
-/* A tab already taken: the gap shows the cork */
-.tearoffs.is-torn .tab:first-child { background: transparent; border-top-color: transparent; color: transparent; }
-.tearoffs.is-torn::before {
-  content: ""; position: absolute; z-index: 2; top: -1px; left: 0; width: calc(100% / var(--tabs, 4)); height: 7px; background: var(--slip, var(--paper));
-  clip-path: polygon(0 0, 100% 0, 100% 40%, 90% 100%, 78% 35%, 66% 90%, 52% 30%, 40% 100%, 27% 40%, 14% 95%, 0 45%);
+.tab strong { display: block; font-weight: 800; }
+/* Sold: the tab is gone and only its ragged stub stays on the slip */
+.tearoff.is-torn:not(.tear-now) .tab { visibility: hidden; }
+.tearoff.is-torn .tab-slot::before {
+  content: ""; position: absolute; z-index: 2; top: -1px; left: 0; right: 0; height: 7px; background: var(--slip, var(--paper));
+  clip-path: polygon(0 0, 100% 0, 100% 40%, 92% 100%, 83% 35%, 74% 90%, 64% 30%, 55% 100%, 45% 40%, 36% 95%, 26% 35%, 17% 100%, 8% 40%, 0 90%);
 }
 .tab-in-hand {
   display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-4); margin-top: var(--s-4);
@@ -571,14 +570,16 @@ a.subtext:hover { text-decoration: underline; }
 .breadcrumb a { color: var(--cork-muted); text-decoration: none; }
 .breadcrumb a:hover { color: var(--cork-ink); text-decoration: underline; }
 .product-page { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: var(--s-8); align-items: start; }
-.slip-lg { --tilt: -0.5deg; --tabs: 6; }
+.slip-lg { --tilt: -0.5deg; }
 .slip-lg .slip-body { padding: var(--s-8) var(--s-8) var(--s-5); gap: 0; }
 .slip-lg .slip-body::before { width: 18px; height: 18px; margin-left: -9px; top: 10px; }
 .slip-lg .slip-art { height: 200px; view-transition-name: product-hero; }
 .slip-lg .slip-art img { width: 176px; height: 176px; }
 .slip-lg .slip-art .thumb-fallback { font-size: 6rem; }
 .slip-lg h1 { margin: var(--s-4) 0 var(--s-2); }
-.slip-lg .tab { height: 96px; font-size: var(--fs-14); }
+.slip-lg .tab-slot { min-width: 46%; }
+.slip-lg .tab { height: 64px; font-size: var(--fs-14); padding: 0 var(--s-5); }
+.slip-lg .tab span { display: block; font-weight: 500; font-size: var(--fs-13); color: var(--muted); }
 .slip-lg .desc { font-size: var(--fs-16); line-height: 1.55; margin: var(--s-4) 0; max-width: 62ch; }
 .slip-lg .price-drop { margin-top: var(--s-2); }
 .big-price { font-size: var(--fs-40); font-weight: 800; font-stretch: var(--condensed); letter-spacing: -0.015em; line-height: 1; }
@@ -774,12 +775,11 @@ dialog.confirm::backdrop { background: rgb(20 13 8 / 0.55); transition: opacity 
 
 /* ---------- 19. Motion ---------- */
 /* The one authored moment: buying tears a tab off the slip and the seller's number is in your hand. */
-.tearoffs.tear-now .tab:first-child { animation: tear 820ms var(--ease-in) 300ms both; transform-origin: 100% 0; z-index: 1; }
-.tearoffs.tear-now::before { animation: stub-in 1ms linear 650ms both; }
+.tearoff.tear-now .tab { animation: tear 820ms var(--ease-in) 300ms both; transform-origin: 100% 0; z-index: 1; }
+.tearoff.tear-now .tab-slot::before { animation: stub-in 1ms linear 650ms both; }
 @keyframes tear {
-  0% { transform: none; background: var(--slip, var(--paper)); color: var(--ink-2); border-top-color: color-mix(in srgb, var(--ink) 30%, transparent); }
   22% { transform: rotate(-5deg); }
-  100% { transform: translate(14px, 140px) rotate(28deg); opacity: 0; background: var(--slip, var(--paper)); color: var(--ink-2); }
+  100% { transform: translate(14px, 120px) rotate(28deg); opacity: 0; }
 }
 @keyframes stub-in { from { opacity: 0; } to { opacity: 1; } }
 .tab-in-hand.tear-now { animation: in-hand 420ms var(--ease-out) 900ms both; }
@@ -796,7 +796,7 @@ dialog.confirm::backdrop { background: rgb(20 13 8 / 0.55); transition: opacity 
   .btn:active, .chip:active, .icon-btn:active, .menu-trigger:active, .demo-user:active, .report-tile:active, .cat-tab:active,
   .tabbar a:active .icon, .slip:hover .slip-art img, .cat-tab:hover img, .logo:hover .logo-mark { transform: none; }
   .menu-panel, .menu[data-open="true"] .menu-panel { transform: none; }
-  .tearoffs.tear-now .tab:first-child { animation-name: tear-fade; animation-timing-function: ease; }
+  .tearoff.tear-now .tab { animation-name: tear-fade; animation-timing-function: ease; }
   @keyframes tear-fade { to { opacity: 0; } }
   .tab-in-hand.tear-now { animation-name: fade-in; }
   @keyframes fade-in { from { opacity: 0; } }
@@ -844,21 +844,20 @@ dialog.confirm::backdrop { background: rgb(20 13 8 / 0.55); transition: opacity 
   .row { grid-template-columns: 1fr; gap: 0; }
   .grid, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-4) var(--s-3); }
   .grid-wide { grid-template-columns: 1fr; }
-  .slip { --tabs: 3; }
-  .slip .tab:nth-child(n + 4) { display: none; }
-  .slip-lg .tab:nth-child(4) { display: grid; }
   .slip-body { padding: var(--s-5) var(--s-3) var(--s-2); }
   .slip-art { height: 64px; }
   .slip-art img { width: 56px; height: 56px; }
   .slip-title { font-size: var(--fs-14); }
   .slip .note { font-size: 1.125rem; }
   .slip-meta .rating { display: none; }
-  .tab { height: 64px; font-size: var(--fs-12); }
-  .slip-lg { --tabs: 4; --tilt: 0deg; }
+  .tab { height: 36px; font-size: var(--fs-12); padding: 0 var(--s-2); }
+  .tab-slot { min-width: 70%; }
+  .slip-lg { --tilt: 0deg; }
   .slip-lg .slip-body { padding: var(--s-6) var(--s-4) var(--s-4); }
   .slip-lg .slip-art { height: 132px; }
   .slip-lg .slip-art img { width: 120px; height: 120px; }
-  .slip-lg .tab { height: 100px; }
+  .slip-lg .tab-slot { min-width: 70%; }
+  .slip-lg .tab { height: 58px; }
   .activity .act-notes { display: none; }
   .big-price { font-size: var(--fs-32); }
   .section { margin-top: var(--s-10); }

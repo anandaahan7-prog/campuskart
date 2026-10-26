@@ -35,9 +35,9 @@
           <dt>Pinned by</dt><dd>{{ p.seller_name }}{% if p.seller_branch %}, {{ p.seller_branch }}{% if p.seller_year %} year {{ p.seller_year }}{% endif %}{% endif %}</dd>
         </dl>
       </div>
-      {# Tear-off tabs: the contact comes with the order, the way it does on a real board #}
-      <div class="tearoffs{{ ' is-torn' if my_order }}{{ ' tear-now' if my_order and torn }}" aria-hidden="true">
-        {% for _ in range(6) %}<span class="tab"><span>{{ seller_first }} · ₹{{ (my_order.price if my_order else p.price)|inr }}</span></span>{% endfor %}
+      {# One tear-off tab, because an item sells once: buying tears it off and the number is yours #}
+      <div class="tearoff{{ ' is-torn' if p.status != 'available' or my_order }}{{ ' tear-now' if my_order and torn }}" aria-hidden="true">
+        <span class="tab-slot"><span class="tab"><strong>{{ p.seller_name }}</strong><span>phone number · yours when you buy</span></span></span>
       </div>
     </article>
 

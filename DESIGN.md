@@ -145,7 +145,7 @@ components:
 
 ## Overview
 
-CampusKart is the department notice board, made searchable. A walnut frame holds one cork board; every listing is a paper slip pinned to it with a brass pin, and the perforated tear-off tabs at the foot of each slip are how you get in touch. The world refuses the category default of a white card grid with a blue search bar: anyone who has walked past a college corridor recognises it in a second.
+CampusKart is the department notice board, made searchable. A walnut frame holds one cork board; every listing is a paper slip pinned to it with a brass pin, and the one perforated tear-off tab at the foot of each slip is how you get in touch. An item sells once, so a slip has one tab: there while it's for sale, torn off once it's sold. The world refuses the category default of a white card grid with a blue search bar: anyone who has walked past a college corridor recognises it in a second.
 
 The screens are tools (Operate mode). Expression lives in the material (cork, paper, pins, stamps, handwriting) and in one authored moment; the layouts themselves stay quiet, scannable and conventional. The guest home is the one persuade moment, built from the same slips.
 
@@ -254,10 +254,10 @@ Paper fill, 1px `control` border (3.5:1), 6px radius, 40px tall, 16px text. Focu
 Walnut top bar with frame-muted links; the current page gets frame-ink and a 2px underline. Sub-navigation and page tabs are underline tabs on a 1px rule. On phones a walnut bottom bar carries five destinations with Sell as a paper pill.
 
 ### Slip (signature)
-Category paper, brass pin, condition and category, the printed picture, title (16px, two lines), condensed price with MRP and "% off", the AI reason in blue handwriting, seller and rating, then a perforated row of tear-off tabs (four on the grid, six on the product slip) carrying the seller's first name. Pinned a few tenths of a degree crooked; straightens and lifts 3px on hover.
+Category paper, brass pin, condition and category, the printed picture, title (16px, two lines), condensed price with MRP and "% off", the AI reason in blue handwriting, seller and rating, then one perforated tear-off tab hanging from the foot (seller's first name and price; on the product slip, the seller's name and "phone number · yours when you buy"). When the item is sold the tab is gone and only its ragged stub remains. Pinned a few tenths of a degree crooked; straightens and lifts 3px on hover.
 
 ### Tear-off (signature moment)
-After an order, the product slip shows one tab missing, its ragged stub left at the perforation, and the tab "in hand" below with the seller's number as a `tel:` link. Arriving from Buy or Accept counter (`?torn=1`), the tab tugs, pivots from its top corner and falls away (820ms, ease-in) before the number lands (420ms, ease-out). Reduced motion: both simply fade.
+After an order, the product slip's tab is gone, its ragged stub left at the perforation, and the tab "in hand" below carries the seller's number as a `tel:` link. Anyone else sees the same stub under the "Sold" stamp. Arriving from Buy or Accept counter (`?torn=1`), the tab tugs, pivots from its top corner and falls away (820ms, ease-in) before the number lands (420ms, ease-out). Reduced motion: both simply fade.
 
 ### Stamps
 Outlined, sentence case, 12px condensed bold: green Live, Completed, Accepted; amber Pending, Countered; brick Declined, Cancelled, Removed; ink Awaiting pickup, Sold; grey Withdrawn, Expired.

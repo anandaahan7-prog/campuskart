@@ -106,8 +106,10 @@
 
 {% macro status_pill(s) %}
 {% set css = {'available': 'good', 'placed': 'brand', 'completed': 'good', 'sold': 'brand',
-              'pending': 'warn', 'cancelled': 'bad', 'rejected': 'bad', 'removed': 'bad'} %}
-{% set label = {'placed': 'Awaiting pickup', 'pending': 'In review', 'available': 'Live'} %}
+              'pending': 'warn', 'cancelled': 'bad', 'rejected': 'bad', 'removed': 'bad',
+              'countered': 'brand', 'accepted': 'good', 'withdrawn': '', 'expired': ''} %}
+{% set label = {'placed': 'Awaiting pickup', 'pending': 'Pending', 'available': 'Live',
+                'countered': 'Countered', 'rejected': 'Declined', 'withdrawn': 'Withdrawn'} %}
 <span class="pill pill-{{ css.get(s, '') }}">{{ label.get(s, s|capitalize) }}</span>
 {% endmacro %}
 

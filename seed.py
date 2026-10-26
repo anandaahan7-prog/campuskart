@@ -229,6 +229,29 @@ ORDERS = [
 ]
 
 
+# Related items students browsed together: user -> [product keys]
+CO_VIEWS = {
+    "vikram": ["arduino", "breadboard", "multimeter", "solder", "rpi"],
+    "sneha": ["laptop", "mouse", "keyboard", "pendrive", "powerbank"],
+    "meera": ["drafter", "board", "drawkit", "fx991es", "bhatt"],
+    "rohan": ["korth", "galvin", "ds", "dbmsnotes", "cn"],
+    "arjun": ["kettle", "bucket", "bedsheet", "lamp", "extension"],
+    "ravi": ["hero", "btwin", "cyclelock", "bat", "football"],
+    "karan": ["breadboard", "solder", "rpi"],
+    "priya": ["board", "bhatt", "grewal"],
+    "aisha": ["mattress", "bucket", "lamp", "cyclelock"],
+}
+
+# Offers: (product_key, buyer, amount, message, hours_ago, final_status, counter_amount)
+OFFERS = [
+    ("korth", "rahul", 380, "Can you do 380? I can pick it up today.", 5, "pending", None),
+    ("grewal", "priya", 420, "Would you take 420?", 30, "countered", 470),
+    ("rpi", "karan", 2600, "Is 2600 okay?", 50, "rejected", None),
+    ("hero", "aisha", 3000, "I can pick it up near the hostel gate.", 8, "pending", None),
+    ("yoga", "aisha", 280, "Would 280 work?", 3, "pending", None),
+]
+
+
 def ago(unit_value, unit):
     return f"-{unit_value} {unit}"
 
@@ -329,14 +352,50 @@ def seed(db_path=DB_PATH):
             (user_id[random.choice(viewers)], product_id[pkey], ago(random.randint(1, 600), "hours")),
         )
 
+    # Browsing sessions where students looked at related items one after another.
+    # These co-views power "Students who viewed this also viewed" (collaborative filtering).
+    for user, keys in CO_VIEWS.items():
+        for pkey in keys:
+            db.execute(
+                """INSERT INTO product_views (user_id, product_id, viewed_at)
+                   VALUES (?, ?, datetime('now', 'localtime', ?))""",
+                (user_id[user], product_id[pkey], ago(random.randint(5, 200), "hours")),
+            )
+
     # Welcome notification for everyone
     db.execute("""INSERT INTO notifications (user_id, message)
                   SELECT user_id, 'Welcome to CampusKart! Buy and sell within your campus.' FROM users""")
 
+    # Everything above is the initial data, so start the audit log clean. The demo
+    # actions below run like real app usage: each is recorded with the acting user.
+    db.execute("DELETE FROM audit_log")
+
+    def act_as(uid):
+        db.execute("UPDATE audit_context SET user_id = ? WHERE id = 1", (uid,))
+
+    # Price drop on a wishlisted item (trigger notifies Aisha)
+    act_as(user_id["arjun"])
+    db.execute("UPDATE products SET price = 950 WHERE product_id = ?", (product_id["mattress"],))
+
+    # Offers in different states (triggers notify the other side each time)
+    for pkey, buyer, amount, message, hours, outcome, counter in OFFERS:
+        act_as(user_id[buyer])
+        cur = db.execute(
+            """INSERT INTO offers (product_id, buyer_id, amount, message, created_at)
+               VALUES (?, ?, ?, ?, datetime('now', 'localtime', ?))""",
+            (product_id[pkey], user_id[buyer], amount, message, ago(hours, "hours")))
+        if outcome != "pending":
+            seller = db.execute("SELECT seller_id FROM products WHERE product_id = ?",
+                                (product_id[pkey],)).fetchone()[0]
+            act_as(seller)
+            db.execute("""UPDATE offers SET status = ?, counter_amount = ?, updated_at = datetime('now', 'localtime', ?)
+                          WHERE offer_id = ?""", (outcome, counter, ago(max(hours - 2, 1), "hours"), cur.lastrowid))
+    act_as(None)
+
     db.commit()
     counts = {t: db.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
               for t in ["users", "categories", "products", "orders", "reviews", "wishlist",
-                        "search_history", "product_views", "notifications"]}
+                        "search_history", "product_views", "notifications", "offers", "audit_log"]}
     db.close()
     return counts
 

@@ -163,3 +163,33 @@ def similar_products(db, product_id, n=4):
     ranked = sorted(zip(products, scores), key=lambda x: x[1], reverse=True)
     return [{"product": p, "score": round(float(s), 3)}
             for p, s in ranked if p["product_id"] != product_id and s > MIN_SCORE][:n]
+
+
+# ---------------------------------------------------------------------------
+# AI Feature 4 : "Students who viewed this also viewed" (collaborative filtering)
+# ---------------------------------------------------------------------------
+# Item-to-item collaborative filtering written as one SQL self-join: find every
+# student who viewed this product (v1), then everything else those same students
+# viewed (v2), and rank by how many students the two products have in common.
+# Unlike the TF-IDF recommender, this ignores the text completely: it learns
+# purely from behaviour, so it can pair a laptop with a mouse.
+ALSO_VIEWED_SQL = """
+SELECT d.*, COUNT(DISTINCT v2.user_id) AS shared_viewers
+FROM product_views v1
+JOIN product_views v2      ON v2.user_id = v1.user_id AND v2.product_id <> v1.product_id
+JOIN v_product_details d   ON d.product_id = v2.product_id
+WHERE v1.product_id = ?
+  AND v1.user_id <> ?
+  AND d.status = 'available'
+  AND d.seller_id <> ?
+GROUP BY v2.product_id
+HAVING shared_viewers >= 1
+ORDER BY shared_viewers DESC, d.created_at DESC
+LIMIT ?
+"""
+
+
+def also_viewed(db, product_id, user_id=None, n=4):
+    uid = user_id if user_id is not None else -1
+    rows = db.execute(ALSO_VIEWED_SQL, (product_id, uid, uid, n)).fetchall()
+    return [{"product": r, "shared": r["shared_viewers"]} for r in rows]

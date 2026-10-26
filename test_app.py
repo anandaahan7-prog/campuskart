@@ -78,14 +78,67 @@ def main():
     # Neha: new user -> cold start
     check(login(c, "neha@college.edu"), "Trending on campus")
 
+    # ---- New features -------------------------------------------------------
+    pid_of = lambda title: db.execute("SELECT product_id FROM products WHERE title LIKE ?",
+                                      (title + "%",)).fetchone()[0]
+    arduino, korth, lamp = pid_of("Arduino Uno"), pid_of("Database System Concepts"), pid_of("LED Study")
+
+    # "Also viewed" (collaborative filtering) on the product page
+    check(c.get(f"/product/{arduino}"), "Students who viewed this also viewed", "of the same student")
+
+    # Offers: validation trigger rejects an offer at or above the asking price
+    check(c.post(f"/offer/{lamp}", data={"amount": 99999}, follow_redirects=True), "Offer less than the asking price")
+    check(c.post(f"/offer/{lamp}", data={"amount": 400, "message": "ok?"}, follow_redirects=True), "Offer of ₹400 sent")
+    check(c.post(f"/offer/{lamp}", data={"amount": 390}, follow_redirects=True), "already have an open offer")
+    neha_offer = db.execute("SELECT offer_id FROM offers WHERE product_id = ? AND status = 'pending'",
+                            (lamp,)).fetchone()[0]
+
+    # Seller (Vikram) counters, Neha accepts the counter -> order created at the counter price
+    check(login(c, "vikram@college.edu"), "Hi Vikram")
+    check(c.get("/orders?tab=offers"), "Offers on your items", "Neha Gupta", "Rahul Sharma")
+    check(c.post(f"/offers/{neha_offer}/counter", data={"counter_amount": 10}, follow_redirects=True), "Counter with an amount")
+    check(c.post(f"/offers/{neha_offer}/counter", data={"counter_amount": 440}, follow_redirects=True), "Counter-offer sent")
+    check(login(c, "neha@college.edu"), "Hi Neha")
+    check(c.get(f"/product/{lamp}"), "countered at ₹440")
+    check(c.post(f"/offers/{neha_offer}/accept_counter", follow_redirects=True), "Deal done at ₹440")
+    order = db.execute("SELECT price, status FROM orders WHERE product_id = ? ORDER BY order_id DESC", (lamp,)).fetchone()
+    assert order == (440.0, "placed"), order
+
+    # Seller accepts Rahul's seeded offer on Korth -> order at the offered price
+    login(c, "vikram@college.edu")
+    rahul_offer = db.execute("SELECT offer_id FROM offers WHERE product_id = ? AND status = 'pending'",
+                             (korth,)).fetchone()[0]
+    check(c.post(f"/offers/{rahul_offer}/accept", follow_redirects=True), "Deal done at ₹380")
+    assert db.execute("SELECT status FROM products WHERE product_id = ?", (korth,)).fetchone()[0] == "sold"
+    check(c.post(f"/offers/{rahul_offer}/accept", follow_redirects=True), "already changed")   # state machine
+
+    # Price drop: Vikram lowers the laptop price -> Rahul (wishlisted it) is notified, audit records it
+    laptop = pid_of("Dell Inspiron")
+    form = {"title": "Dell Inspiron 15 Laptop - i5, 8GB RAM, 512GB SSD", "description": "Dell laptop, charger included.",
+            "category_id": 2, "condition": "Good", "original_price": 52000, "age_months": 30, "price": 24000}
+    check(c.post(f"/listing/{laptop}/edit", data=form, follow_redirects=True), "Listing updated")
+    check(login(c, "rahul@college.edu"), "Recommended for you")
+    check(c.get("/notifications"), "Price drop", "now Rs. 24000")
+    check(c.get(f"/product/{laptop}"), "Price dropped from")
+    who = db.execute("""SELECT u.name FROM audit_log a JOIN users u ON u.user_id = a.changed_by
+                        WHERE a.field = 'price' AND a.row_id = ? ORDER BY audit_id DESC""", (laptop,)).fetchone()[0]
+    assert who == "Vikram Singh", who
+
     # Admin
     check(login(c, "admin@campuskart.com", "admin123"), "Admin dashboard", "Sales by category")
     check(c.get("/admin/listings"), "Flagged by AI", "iPhone 14 Pro")
     check(c.get("/admin/users"), "Rahul Sharma")
     check(c.get("/admin/orders"), "Head First Java")
-    check(c.get("/admin/database"), "trg_order_validate", "v_seller_ratings")
-    check(c.post("/admin/database", data={"sql": "SELECT name FROM users"}), "Rahul Sharma")
-    check(c.post("/admin/database", data={"sql": "DELETE FROM users"}), "Only SELECT")
+    # Data lookup: name search, student profile, item profile, reports, schema browser
+    check(c.get("/admin/database", follow_redirects=True), "trg_order_validate", "v_seller_ratings")
+    check(c.get("/admin/lookup?q=rahul", follow_redirects=True), "Rahul Sharma", "Search history",
+          "Offers made", "Show SQL", "dbms book")
+    check(c.get("/admin/lookup?q=a"), "Students", "Items")                     # many matches -> list
+    check(c.get("/admin/lookup?product=1"), "Price and status history", "Offers", "Viewed by")
+    check(c.get("/admin/lookup?report=price_rank"), "Window function", "RANK() OVER")
+    check(c.get("/admin/lookup?report=leaderboard"), "CTE + view")
+    check(c.get("/admin/audit"), "Audit log", "trg_audit_product_price")
+    check(c.get("/admin/audit?table=offers"), "offer")
     pid = db.execute("SELECT product_id FROM products WHERE status = 'pending' LIMIT 1").fetchone()[0]
     check(c.post(f"/admin/listings/{pid}/approve", follow_redirects=True), "Listing approved")
 

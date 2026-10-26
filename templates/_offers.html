@@ -1,0 +1,100 @@
+{% from "_macros.html" import status_pill, icon, empty_state %}
+{# Offers tab: the seller side (received) and the buyer side (sent) of the bargaining flow #}
+<section aria-labelledby="offers-in-title">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">As a seller</span>
+      <h2 id="offers-in-title">Offers on your items</h2>
+    </div>
+  </div>
+  {% if offers_in %}
+  <div class="offer-list">
+    {% for o in offers_in %}
+    <article class="offer-card {{ 'is-open' if o.status in ['pending', 'countered'] }}">
+      <div class="offer-main">
+        <span class="offer-emoji" aria-hidden="true">{{ o.category_icon }}</span>
+        <div class="grow">
+          <a class="item-link" href="{{ url_for('product', pid=o.product_id) }}">{{ o.title }}</a>
+          <span class="subtext">{{ o.buyer_name }} · {{ o.created_at|ago }}{% if o.message %} · “{{ o.message }}”{% endif %}</span>
+        </div>
+        <div class="offer-figures">
+          <span class="offer-amount">₹{{ o.amount|inr }}</span>
+          <span class="subtext">asking ₹{{ o.asking|inr }}{% if o.counter_amount %} · you countered ₹{{ o.counter_amount|inr }}{% endif %}</span>
+        </div>
+        {{ status_pill(o.status) }}
+      </div>
+      {% if o.status == 'pending' %}
+      <div class="offer-actions">
+        <form method="post" action="{{ url_for('offer_action', oid=o.offer_id, action='accept') }}"
+              data-confirm-title="Sell for ₹{{ o.amount|inr }}?"
+              data-confirm="{{ o.buyer_name }} gets the item at ₹{{ o.amount|inr }}. This creates the order and closes other offers on it."
+              data-confirm-ok="Accept ₹{{ o.amount|inr }}" data-confirm-cancel="Not yet">
+          <button class="btn btn-good btn-sm">{{ icon('check', 14) }}Accept ₹{{ o.amount|inr }}</button>
+        </form>
+        <form method="post" action="{{ url_for('offer_action', oid=o.offer_id, action='counter') }}" class="counter-form">
+          <label for="counter-{{ o.offer_id }}" class="sr-only">Counter-offer amount for {{ o.title }}</label>
+          <input id="counter-{{ o.offer_id }}" name="counter_amount" type="number" inputmode="numeric"
+                 min="{{ (o.amount + 1)|int }}" max="{{ (o.asking - 1)|int }}" step="1"
+                 value="{{ (((o.amount + o.asking) / 2) / 10)|round|int * 10 }}" required>
+          <button class="btn btn-outline btn-sm">Counter</button>
+        </form>
+        <form method="post" action="{{ url_for('offer_action', oid=o.offer_id, action='reject') }}">
+          <button class="btn btn-ghost btn-sm">Decline</button>
+        </form>
+      </div>
+      {% elif o.status == 'countered' %}
+      <p class="offer-note">Waiting for {{ o.buyer_name.split()[0] }} to accept your counter of ₹{{ o.counter_amount|inr }}.</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  {{ empty_state('inbox', 'No offers yet', 'When a buyer offers a lower price on one of your items, it shows up here so you can accept, counter or decline.') }}
+  {% endif %}
+</section>
+
+<section class="section" aria-labelledby="offers-out-title">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">As a buyer</span>
+      <h2 id="offers-out-title">Offers you made</h2>
+    </div>
+  </div>
+  {% if offers_out %}
+  <div class="offer-list">
+    {% for o in offers_out %}
+    <article class="offer-card {{ 'is-open' if o.status in ['pending', 'countered'] }}">
+      <div class="offer-main">
+        <span class="offer-emoji" aria-hidden="true">{{ o.category_icon }}</span>
+        <div class="grow">
+          <a class="item-link" href="{{ url_for('product', pid=o.product_id) }}">{{ o.title }}</a>
+          <span class="subtext">to {{ o.seller_name }} · {{ o.created_at|ago }}</span>
+        </div>
+        <div class="offer-figures">
+          <span class="offer-amount">₹{{ o.amount|inr }}</span>
+          <span class="subtext">asking ₹{{ o.asking|inr }}{% if o.counter_amount %} · counter ₹{{ o.counter_amount|inr }}{% endif %}</span>
+        </div>
+        {{ status_pill(o.status) }}
+      </div>
+      {% if o.status in ['pending', 'countered'] %}
+      <div class="offer-actions">
+        {% if o.status == 'countered' %}
+        <form method="post" action="{{ url_for('offer_action', oid=o.offer_id, action='accept_counter') }}"
+              data-confirm-title="Buy for ₹{{ o.counter_amount|inr }}?"
+              data-confirm="This places the order at the seller's counter price."
+              data-confirm-ok="Buy for ₹{{ o.counter_amount|inr }}" data-confirm-cancel="Not yet">
+          <button class="btn btn-sm">{{ icon('check', 14) }}Accept ₹{{ o.counter_amount|inr }}</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{{ url_for('offer_action', oid=o.offer_id, action='withdraw') }}">
+          <button class="btn btn-ghost btn-sm">{{ 'Decline counter' if o.status == 'countered' else 'Withdraw offer' }}</button>
+        </form>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  {{ empty_state('receipt', "You haven't made any offers", 'Open any item and choose “Make an offer” to suggest a lower price to the seller.', 'Browse items', url_for('search')) }}
+  {% endif %}
+</section>

@@ -8,7 +8,15 @@
     {{ icon('bag', 16) }}Purchases <span class="count">{{ purchases|length }}</span></a>
   <a href="{{ url_for('orders', tab='sales') }}" {% if tab == 'sales' %}aria-current="page"{% endif %}>
     {{ icon('tag', 16) }}Sales <span class="count">{{ sales|length }}</span></a>
+  {% set waiting = offers_in|selectattr('status', 'equalto', 'pending')|list|length %}
+  <a href="{{ url_for('orders', tab='offers') }}" {% if tab == 'offers' %}aria-current="page"{% endif %}>
+    {{ icon('receipt', 16) }}Offers <span class="count{{ ' count-alert' if waiting }}">{{ waiting if waiting else (offers_in|length + offers_out|length) }}</span>
+    {% if waiting %}<span class="sr-only">waiting for your reply</span>{% endif %}</a>
 </nav>
+
+{% if tab == 'offers' %}
+  {% include "_offers.html" %}
+{% else %}
 
 {% if tab == 'purchases' %}
   {% if purchases %}
@@ -94,5 +102,6 @@
   {{ empty_state('tag', 'No sales yet', "When someone buys your item, you'll see their number here to arrange pickup.",
                  'Sell an item', url_for('sell')) }}
   {% endif %}
+{% endif %}
 {% endif %}
 {% endblock %}

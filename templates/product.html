@@ -22,7 +22,7 @@
     </p>
   </div>
 
-  <section class="card" aria-labelledby="product-title">
+  <section class="card product-info" aria-labelledby="product-title">
     {% if p.status != 'available' %}<p>{{ status_pill(p.status) }}</p>{% endif %}
     <h1 id="product-title">{{ p.title }}</h1>
     <div class="price-block">
@@ -30,6 +30,9 @@
       <span class="mrp">MRP ₹{{ p.original_price|inr }}</span>
       {% if off > 0 %}<span class="save-text">Save {{ off }}%</span>{% endif %}
     </div>
+    {% if price_drop %}
+    <p class="price-drop">{{ icon('tag', 15) }}Price dropped from <s>₹{{ price_drop.was|inr }}</s> {{ price_drop.at|ago }}</p>
+    {% endif %}
 
     {% if verdict %}
     {% set tone = {'good': 'good', 'fair': 'info', 'bad': 'bad'}[verdict.css] %}
@@ -70,6 +73,9 @@
         {% if p.status in ['available', 'pending'] %}
         <a class="btn btn-lg btn-outline" href="{{ url_for('edit_listing', pid=p.product_id) }}">{{ icon('edit', 16) }}Edit listing</a>
         {% endif %}
+        {% if open_offers %}
+        <a class="btn btn-lg btn-accent" href="{{ url_for('orders', tab='offers') }}">{{ icon('inbox', 16) }}{{ open_offers }} offer{{ '' if open_offers == 1 else 's' }} waiting</a>
+        {% endif %}
       {% elif g.user.role == 'user' and p.status == 'available' %}
         <form method="post" action="{{ url_for('buy', pid=p.product_id) }}"
               data-confirm-title="Buy this item for ₹{{ p.price|inr }}?"
@@ -79,13 +85,80 @@
         </form>
         <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
           <button class="btn btn-lg btn-outline" aria-pressed="{{ 'true' if in_wishlist else 'false' }}">
-            {{ icon('heart', 18) }}{{ 'Saved to wishlist' if in_wishlist else 'Save to wishlist' }}
+            {{ icon('heart', 18) }}{{ 'Saved' if in_wishlist else 'Save' }}
           </button>
         </form>
       {% endif %}
     </div>
+
+    {# ---------------- Offers (bargaining) ---------------- #}
+    {% if my_offer %}
+      {% if my_offer.status == 'pending' %}
+      <div class="offer-status callout callout-info mt-4" role="status">
+        {{ icon('clock', 18) }}
+        <p><strong>Your offer of ₹{{ my_offer.amount|inr }} is with {{ p.seller_name.split()[0] }}.</strong>
+           You'll get a notification when they reply.</p>
+        <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button class="btn btn-ghost btn-sm">Withdraw</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="offer-status callout callout-warn mt-4" role="status">
+        {{ icon('receipt', 18) }}
+        <p><strong>{{ p.seller_name.split()[0] }} countered at ₹{{ my_offer.counter_amount|inr }}</strong>
+           (you offered ₹{{ my_offer.amount|inr }}).</p>
+        <div class="cluster">
+          <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='accept_counter') }}"
+                data-confirm-title="Buy for ₹{{ my_offer.counter_amount|inr }}?"
+                data-confirm="This places the order at the counter price. {{ p.seller_name }} will be notified."
+                data-confirm-ok="Buy for ₹{{ my_offer.counter_amount|inr }}" data-confirm-cancel="Not yet">
+            <button class="btn btn-sm">Accept ₹{{ my_offer.counter_amount|inr }}</button>
+          </form>
+          <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-ghost btn-sm">Decline</button>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+    {% elif suggested_offer %}
+    <details class="offer-box mt-4">
+      <summary>{{ icon('receipt', 16) }}Make an offer<span class="hint-inline">Bargain politely, like you would in person</span>{{ icon('chevron-down', 16, 'chev') }}</summary>
+      <form method="post" action="{{ url_for('make_offer', pid=p.product_id) }}" class="offer-form">
+        <div class="field">
+          <label for="offer-amount">Your offer (₹)</label>
+          <input id="offer-amount" name="amount" type="number" inputmode="numeric" min="1" max="{{ (p.price - 1)|int }}"
+                 step="1" value="{{ suggested_offer }}" required aria-describedby="offer-hint">
+          <span class="hint" id="offer-hint">
+            {{ ai_badge() }} Suggested: ₹{{ suggested_offer|inr }}{% if verdict %}, close to our fair-price estimate of ₹{{ verdict.estimate|inr }}{% endif %}. Must be below ₹{{ p.price|inr }}.
+          </span>
+        </div>
+        <div class="field">
+          <label for="offer-msg">Message (optional)</label>
+          <input id="offer-msg" name="message" maxlength="140" placeholder="e.g. I can pick it up today near the library">
+        </div>
+        <button class="btn">Send offer</button>
+      </form>
+    </details>
+    {% endif %}
   </section>
 </div>
+
+{% if also %}
+<section class="section" aria-labelledby="also-title">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow ai">{{ icon('users', 14) }}Collaborative filtering</span>
+      <h2 id="also-title">Students who viewed this also viewed</h2>
+    </div>
+    {{ ai_badge("Learned from browsing") }}
+  </div>
+  <div class="grid">
+    {% for a in also %}{{ product_card(a.product, 'Viewed by ' ~ a.shared ~ ' of the same student' ~ ('' if a.shared == 1 else 's'), loop.index0) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
 
 {% if reviews %}
 <section class="section" aria-labelledby="reviews-title">
@@ -105,8 +178,10 @@
 {% if similar %}
 <section class="section" aria-labelledby="similar-title">
   <div class="section-head">
-    <h2 id="similar-title" class="title-icon">{{ icon('sparkles', 20) }}Similar items</h2>
-    {{ ai_badge("Content similarity") }}
+    <div>
+      <span class="eyebrow ai">{{ icon('sparkles', 14) }}Content similarity</span>
+      <h2 id="similar-title">Similar items</h2>
+    </div>
   </div>
   <div class="grid">
     {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this item', loop.index0) }}{% endfor %}

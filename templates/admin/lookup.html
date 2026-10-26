@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, status_pill, cat_picture %}
+{% block title %}Data lookup{% endblock %}
+
+{% macro cell(col, v, row) -%}
+  {%- set keys = row.keys() -%}
+  {%- if v is none or v == '' -%}<span class="muted">–</span>
+  {%- elif col in ['price', 'amount', 'counter', 'asking', 'revenue', 'earned', 'spent'] -%}₹{{ v|inr }}
+  {%- elif col.endswith('_at') -%}<time datetime="{{ v }}" title="{{ v }}">{{ v|ago }}</time>
+  {%- elif col == 'status' -%}{{ status_pill(v) }}
+  {%- elif col == 'rating' -%}<span class="rating-cell">{{ icon('star', 12) }}{{ v }}</span>
+  {%- elif col == 'title' and '_pid' in keys -%}<a class="item-link" href="{{ url_for('admin_lookup', product=row['_pid']) }}">{{ v }}</a>
+  {%- elif col in ['buyer', 'seller', 'student', 'changed_by'] and '_uid' in keys and row['_uid'] -%}<a class="item-link" href="{{ url_for('admin_lookup', user=row['_uid']) }}">{{ v }}</a>
+  {%- elif col in ['old', 'new'] -%}<code>{{ v|clean }}</code>
+  {%- elif col == 'action' -%}<span class="pill {{ 'pill-good' if v == 'INSERT' else 'pill-brand' }}">{{ v }}</span>
+  {%- else -%}{{ v|clean }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro data_table(sec) %}
+  {% set cols = sec.visible %}
+  {% if sec.rows %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr>{% for c in cols %}<th scope="col" class="{{ 'num' if c in ['price','amount','counter','asking','revenue','earned','spent','times','views','sold','offers','items','shared_viewers','matching_items','price_rank','items_sold'] }}">{{ c.replace('_', ' ') }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for r in sec.rows %}
+      <tr>{% for c in cols %}<td class="{{ 'num' if c in ['price','amount','counter','asking','revenue','earned','spent','times','views','sold','offers','items','shared_viewers','matching_items','price_rank','items_sold'] }}">{{ cell(c, r[c], r) }}</td>{% endfor %}</tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted small empty-inline">Nothing here yet.</p>
+  {% endif %}
+  <details class="sql-peek">
+    <summary>{{ icon('database', 14) }}Show SQL</summary>
+    <pre class="sql">{{ sec.sql }}</pre>
+  </details>
+{% endmacro %}
+
+{% block content %}
+<h1>Data lookup</h1>
+{% include "admin/_nav.html" %}
+
+<section class="lookup-hero card" aria-labelledby="lookup-title">
+  <h2 id="lookup-title" class="sr-only">Look up a student or an item</h2>
+  <form class="lookup-form" method="get" role="search">
+    <label for="lookup-q">Student or item name</label>
+    <div class="lookup-row">
+      <div class="search-bar lookup-input">
+        {{ icon('search', 18) }}
+        <input id="lookup-q" name="q" type="search" list="lookup-names" value="{{ q }}" autocomplete="off"
+               placeholder="Try “Rahul”, “Priya” or “calculator”" autofocus>
+      </div>
+      <button class="btn btn-lg">Look up</button>
+    </div>
+    <datalist id="lookup-names">
+      {% for n in names %}<option value="{{ n.label }}">{{ n.kind }}</option>{% endfor %}
+    </datalist>
+  </form>
+  <div class="chips mt-3" aria-label="Quick picks">
+    <span class="xs muted">Quick picks:</span>
+    {% for name in ['Rahul Sharma', 'Priya Patel', 'Vikram Singh', 'Arjun Nair', 'Casio', 'Database System'] %}
+    <a class="chip" href="{{ url_for('admin_lookup', q=name) }}">{{ name }}</a>
+    {% endfor %}
+  </div>
+  <p class="xs muted mt-3 mb-0">No SQL needed: each panel below runs a ready-made, parameterised query.
+    Open <strong>Show SQL</strong> on any panel to see exactly what ran.</p>
+</section>
+
+{# ---------- Matches ---------- #}
+{% if match_users is defined %}
+<section class="section" aria-labelledby="matches-title">
+  <h2 id="matches-title">Results for “{{ q }}”</h2>
+  {% if match_users or match_items %}
+  <div class="two-col">
+    <div class="card">
+      <h3 class="title-icon">{{ icon('users', 18) }}Students <span class="pill">{{ match_users|length }}</span></h3>
+      {% for u in match_users %}
+      <a class="match-row" href="{{ url_for('admin_lookup', user=u.user_id) }}">
+        <span class="avatar" aria-hidden="true">{{ u.name[0] }}</span>
+        <span class="grow"><strong>{{ u.name }}</strong><span class="subtext">{{ u.email }}{% if u.branch %} · {{ u.branch }}{% endif %}</span></span>
+        {{ icon('chevron-right', 16) }}
+      </a>
+      {% else %}<p class="muted small mb-0">No students match.</p>{% endfor %}
+    </div>
+    <div class="card">
+      <h3 class="title-icon">{{ icon('package', 18) }}Items <span class="pill">{{ match_items|length }}</span></h3>
+      {% for i in match_items %}
+      <a class="match-row" href="{{ url_for('admin_lookup', product=i.product_id) }}">
+        <span class="match-emoji" aria-hidden="true">{{ i.category_icon }}</span>
+        <span class="grow"><strong>{{ i.title }}</strong><span class="subtext">₹{{ i.price|inr }} · {{ i.seller_name }}</span></span>
+        {{ status_pill(i.status) }}
+      </a>
+      {% else %}<p class="muted small mb-0">No items match.</p>{% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card empty"><div class="empty-icon">{{ icon('search', 24) }}</div>
+    <h2>Nothing matches “{{ q }}”</h2><p>Check the spelling, or pick a name from the suggestions as you type.</p></div>
+  {% endif %}
+</section>
+{% endif %}
+
+{# ---------- Student profile ---------- #}
+{% if person %}
+<section class="section" aria-labelledby="person-title">
+  <div class="card profile-head">
+    <span class="avatar avatar-lg" aria-hidden="true">{{ person.name[0] }}</span>
+    <div class="grow">
+      <h2 id="person-title" class="mb-0">{{ person.name }}</h2>
+      <p class="muted mb-0">{{ person.email }}{% if person.phone %} · {{ person.phone }}{% endif %}</p>
+      <div class="cluster mt-2">
+        {% if person.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}
+        {% if person.branch %}<span class="pill pill-brand">{{ person.branch }}{% if person.year %} · Year {{ person.year }}{% endif %}</span>{% endif %}
+        {% if person.is_blocked %}<span class="pill pill-bad">Blocked</span>{% else %}<span class="pill pill-good">Active</span>{% endif %}
+        <span class="pill">Joined {{ person.created_at|ago }}</span>
+      </div>
+    </div>
+  </div>
+  <div class="stats mt-3">
+    {% for label, val, money in [('Live listings', person.live_listings, False), ('Items sold', person.items_sold, False),
+                                 ('Items bought', person.items_bought, False), ('Earned', person.earned, True),
+                                 ('Spent', person.spent, True), ('Seller rating', person.rating, False)] %}
+    <div class="stat"><div class="label">{{ label }}</div><div class="value">{{ '₹' ~ (val|inr) if money else (val if val else '–') }}</div></div>
+    {% endfor %}
+  </div>
+  <details class="sql-peek mt-2"><summary>{{ icon('database', 14) }}Show SQL for this profile</summary><pre class="sql">{{ profile_sql }}</pre></details>
+</section>
+{% endif %}
+
+{# ---------- Item profile ---------- #}
+{% if item %}
+<section class="section" aria-labelledby="item-title">
+  <div class="card profile-head">
+    <div class="thumb tint cat-{{ item.category_id }} lookup-thumb">{{ cat_picture(item.category_id, item.category_icon, 'thumb-img', 72) }}</div>
+    <div class="grow">
+      <h2 id="item-title" class="mb-0">{{ item.title }}</h2>
+      <p class="muted mb-0">₹{{ item.price|inr }} (MRP ₹{{ item.original_price|inr }}) · {{ item.condition }} · {{ item.category_name }}</p>
+      <div class="cluster mt-2">
+        {{ status_pill(item.status) }}
+        <a class="pill pill-brand" href="{{ url_for('admin_lookup', user=item.seller_id) }}">Seller: {{ item.seller_name }}</a>
+        <span class="pill">Listed {{ item.created_at|ago }}</span>
+        <a class="pill" href="{{ url_for('product', pid=item.product_id) }}">Open listing {{ icon('arrow-right', 12) }}</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+{% if sections %}
+<div class="lookup-grid">
+  {% for sec in sections %}
+  <section class="card lookup-panel" aria-labelledby="sec-{{ loop.index }}">
+    <h3 id="sec-{{ loop.index }}" class="title-icon">{{ icon(sec.icon, 17) }}{{ sec.title }} <span class="pill">{{ sec.rows|length }}</span></h3>
+    {{ data_table(sec) }}
+  </section>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ---------- One-click reports ---------- #}
+<section class="section" aria-labelledby="reports-title">
+  <div class="section-head">
+    <div><span class="eyebrow">One click, no typing</span><h2 id="reports-title">Ready-made reports</h2></div>
+  </div>
+  <div class="report-grid">
+    {% for key, (title, concept, _) in reports.items() %}
+    <a class="report-tile {{ 'is-active' if report_key == key }}" href="{{ url_for('admin_lookup', report=key) }}#report" {% if report_key == key %}aria-current="true"{% endif %}>
+      <strong>{{ title }}</strong><span class="subtext">{{ concept }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% if report %}
+  <div class="card mt-4" id="report">
+    <div class="section-head">
+      <h3 class="mb-0">{{ report.title }}</h3>
+      <span class="pill pill-ai">{{ report.concept }}</span>
+    </div>
+    {{ data_table(report) }}
+  </div>
+  {% endif %}
+</section>
+
+{# ---------- Schema browser ---------- #}
+<section class="section" aria-labelledby="schema-title">
+  <div class="section-head"><div><span class="eyebrow">Database structure</span><h2 id="schema-title">Tables, views, triggers and indexes</h2></div></div>
+  <div class="two-col">
+    <div class="card">
+      <h3 class="title-icon">{{ icon('table', 18) }}Tables</h3>
+      {% for o in objects if o.type == 'table' %}
+      <details class="schema-obj">
+        <summary>{{ o.name }} <span class="pill">{{ counts[o.name] }} rows</span><span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
+        <pre class="sql">{{ o.sql }}</pre>
+      </details>
+      {% endfor %}
+    </div>
+    <div class="card">
+      <h3 class="title-icon">{{ icon('zap', 18) }}Views, triggers and indexes</h3>
+      {% for o in objects if o.type != 'table' %}
+      <details class="schema-obj">
+        <summary>{{ icon({'view': 'eye', 'trigger': 'zap', 'index': 'key'}[o.type], 15) }}{{ o.name }}
+          <span class="pill {{ 'pill-ai' if o.type == 'trigger' else 'pill-brand' }}">{{ o.type }}</span>
+          {% if o.type != 'view' %}<span class="xs muted">on {{ o.tbl_name }}</span>{% endif %}
+          <span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
+        <pre class="sql">{{ o.sql }}</pre>
+      </details>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

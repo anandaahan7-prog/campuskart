@@ -85,9 +85,11 @@
             {% if g.user.role == 'user' %}
             <a class="menu-item" href="{{ url_for('my_listings') }}">{{ icon('package', 16) }}My listings</a>
             <a class="menu-item" href="{{ url_for('orders') }}">{{ icon('bag', 16) }}Orders</a>
+            <a class="menu-item" href="{{ url_for('orders', tab='offers') }}">{{ icon('receipt', 16) }}Offers</a>
             {% else %}
             <a class="menu-item" href="{{ url_for('admin_dashboard') }}">{{ icon('dashboard', 16) }}Dashboard</a>
-            <a class="menu-item" href="{{ url_for('admin_database') }}">{{ icon('database', 16) }}Database explorer</a>
+            <a class="menu-item" href="{{ url_for('admin_lookup') }}">{{ icon('search', 16) }}Data lookup</a>
+            <a class="menu-item" href="{{ url_for('admin_audit') }}">{{ icon('zap', 16) }}Audit log</a>
             {% endif %}
             <hr>
             <a class="menu-item danger" href="{{ url_for('logout') }}">{{ icon('logout', 16) }}Log out</a>
@@ -135,7 +137,7 @@
 <nav class="tabbar" aria-label="Primary">
   {% if g.user.role == 'admin' %}
     {% set tabs = [('admin_dashboard', 'Dashboard', 'dashboard'), ('admin_listings', 'Listings', 'package'),
-                   ('admin_users', 'Users', 'users'), ('admin_orders', 'Orders', 'receipt'), ('admin_database', 'Database', 'database')] %}
+                   ('admin_users', 'Users', 'users'), ('admin_audit', 'Audit', 'zap'), ('admin_lookup', 'Lookup', 'search')] %}
   {% else %}
     {% set tabs = [('index', 'Home', 'home'), ('wishlist', 'Wishlist', 'heart'), ('sell', 'Sell', 'plus'),
                    ('orders', 'Orders', 'bag'), ('my_listings', 'Listings', 'package')] %}

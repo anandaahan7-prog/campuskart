@@ -1,6 +1,6 @@
 -- =====================================================================
 --  CampusKart : AI-powered second-hand marketplace for students
---  Database schema (SQLite)  -  9 tables, 4 views, 6 triggers, indexes
+--  Database schema (SQLite)  -  11 tables (+1 helper), 4 views, 21 triggers, indexes
 --  All tables are in 3NF.
 -- =====================================================================
 
@@ -11,6 +11,9 @@ DROP VIEW IF EXISTS v_seller_ratings;
 DROP VIEW IF EXISTS v_category_sales;
 DROP VIEW IF EXISTS v_admin_stats;
 
+DROP TABLE IF EXISTS audit_context;
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS offers;
 DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS product_views;
 DROP TABLE IF EXISTS search_history;
@@ -132,6 +135,49 @@ CREATE TABLE notifications (
     created_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
+-- ---------------------------------------------------------------------
+-- 10. OFFERS : bargaining. A buyer offers below the asking price; the seller
+--     accepts, rejects or counters. Status moves through a small state machine:
+--       pending   -> accepted | rejected | countered | withdrawn | expired
+--       countered -> accepted | withdrawn | expired
+-- ---------------------------------------------------------------------
+CREATE TABLE offers (
+    offer_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id     INTEGER NOT NULL REFERENCES products(product_id) ON DELETE CASCADE,
+    buyer_id       INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    amount         REAL    NOT NULL CHECK (amount > 0),
+    counter_amount REAL    CHECK (counter_amount IS NULL OR counter_amount > amount),
+    message        TEXT,
+    status         TEXT    NOT NULL DEFAULT 'pending'
+                   CHECK (status IN ('pending', 'countered', 'accepted', 'rejected', 'withdrawn', 'expired')),
+    created_at     TEXT    NOT NULL DEFAULT (datetime('now', 'localtime')),
+    updated_at     TEXT
+);
+
+-- ---------------------------------------------------------------------
+-- 11. AUDIT_LOG : every important change, written only by triggers
+-- ---------------------------------------------------------------------
+CREATE TABLE audit_log (
+    audit_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    table_name TEXT    NOT NULL,
+    row_id     INTEGER NOT NULL,
+    action     TEXT    NOT NULL CHECK (action IN ('INSERT', 'UPDATE', 'DELETE')),
+    field      TEXT,
+    old_value  TEXT,
+    new_value  TEXT,
+    changed_by INTEGER REFERENCES users(user_id) ON DELETE SET NULL,
+    changed_at TEXT    NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- Helper (one row): which user the application is acting for right now.
+-- The app sets it at the start of every write transaction so triggers can
+-- record "who" in audit_log (triggers cannot see the web session).
+CREATE TABLE audit_context (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    user_id INTEGER
+);
+INSERT INTO audit_context (id, user_id) VALUES (1, NULL);
+
 -- =====================================================================
 --  INDEXES : speed up the most frequent queries
 -- =====================================================================
@@ -141,6 +187,13 @@ CREATE INDEX idx_orders_buyer        ON orders(buyer_id);
 CREATE INDEX idx_search_user         ON search_history(user_id, searched_at);
 CREATE INDEX idx_views_user          ON product_views(user_id, viewed_at);
 CREATE INDEX idx_notif_user          ON notifications(user_id, is_read);
+CREATE INDEX idx_views_product       ON product_views(product_id, user_id);   -- "also viewed" self-join
+CREATE INDEX idx_offers_product      ON offers(product_id, status);
+CREATE INDEX idx_offers_buyer        ON offers(buyer_id);
+CREATE INDEX idx_audit_row           ON audit_log(table_name, row_id);
+CREATE INDEX idx_audit_time          ON audit_log(changed_at);
+-- Partial unique index: a buyer can have only ONE open offer per product.
+CREATE UNIQUE INDEX uq_open_offer    ON offers(product_id, buyer_id) WHERE status IN ('pending', 'countered');
 
 -- =====================================================================
 --  TRIGGERS : business rules enforced inside the database
@@ -217,6 +270,160 @@ BEGIN
                 WHEN 'available' THEN 'Your listing "' || NEW.title || '" was approved and is now live.'
                 ELSE 'Your listing "' || NEW.title || '" was rejected by the admin.'
             END);
+END;
+
+-- T7. Price-drop alert: when a seller lowers the price, tell everyone who
+--     wishlisted the item (compares OLD and NEW values).
+CREATE TRIGGER trg_price_drop_alert
+AFTER UPDATE OF price ON products
+WHEN NEW.price < OLD.price AND NEW.status = 'available'
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    SELECT w.user_id,
+           'Price drop: "' || NEW.title || '" is now Rs. ' || CAST(NEW.price AS INTEGER) ||
+           ' (was Rs. ' || CAST(OLD.price AS INTEGER) || ').'
+    FROM wishlist w
+    WHERE w.product_id = NEW.product_id AND w.user_id <> NEW.seller_id;
+END;
+
+-- T8. Offers must be for an available item, by someone other than the seller,
+--     and below the asking price.
+CREATE TRIGGER trg_offer_validate
+BEFORE INSERT ON offers
+BEGIN
+    SELECT RAISE(ABORT, 'This product is no longer available')
+    WHERE (SELECT status FROM products WHERE product_id = NEW.product_id) <> 'available';
+
+    SELECT RAISE(ABORT, 'You cannot make an offer on your own product')
+    WHERE (SELECT seller_id FROM products WHERE product_id = NEW.product_id) = NEW.buyer_id;
+
+    SELECT RAISE(ABORT, 'Offer must be below the asking price')
+    WHERE NEW.amount >= (SELECT price FROM products WHERE product_id = NEW.product_id);
+END;
+
+-- T9. New offer: notify the seller.
+CREATE TRIGGER trg_offer_created
+AFTER INSERT ON offers
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    SELECT p.seller_id,
+           (SELECT name FROM users WHERE user_id = NEW.buyer_id) || ' offered Rs. ' ||
+           CAST(NEW.amount AS INTEGER) || ' for "' || p.title || '" (you asked Rs. ' ||
+           CAST(p.price AS INTEGER) || ').'
+    FROM products p WHERE p.product_id = NEW.product_id;
+END;
+
+-- T10. Offer status changed: tell the other side what happened.
+CREATE TRIGGER trg_offer_updated
+AFTER UPDATE OF status ON offers
+WHEN NEW.status <> OLD.status
+BEGIN
+    INSERT INTO notifications (user_id, message)
+    SELECT NEW.buyer_id,
+           CASE NEW.status
+             WHEN 'countered' THEN 'The seller countered your offer on "' || p.title || '": Rs. ' ||
+                                   CAST(NEW.counter_amount AS INTEGER) || '.'
+             WHEN 'rejected'  THEN 'Your offer of Rs. ' || CAST(NEW.amount AS INTEGER) ||
+                                   ' on "' || p.title || '" was declined.'
+             WHEN 'accepted'  THEN 'Deal! Your offer on "' || p.title || '" was accepted. Check your orders.'
+             WHEN 'expired'   THEN '"' || p.title || '" is no longer available, so your offer expired.'
+           END
+    FROM products p
+    WHERE p.product_id = NEW.product_id AND NEW.status IN ('countered', 'rejected', 'accepted', 'expired');
+
+    INSERT INTO notifications (user_id, message)
+    SELECT p.seller_id,
+           (SELECT name FROM users WHERE user_id = NEW.buyer_id) || ' withdrew their offer on "' || p.title || '".'
+    FROM products p
+    WHERE p.product_id = NEW.product_id AND NEW.status = 'withdrawn';
+END;
+
+-- T11. When an item is sold, removed or rejected, close every open offer on it.
+CREATE TRIGGER trg_offers_expire
+AFTER UPDATE OF status ON products
+WHEN NEW.status IN ('sold', 'removed', 'rejected') AND OLD.status IN ('available', 'pending')
+BEGIN
+    UPDATE offers SET status = 'expired', updated_at = datetime('now', 'localtime')
+    WHERE product_id = NEW.product_id AND status IN ('pending', 'countered');
+END;
+
+-- ---------------------------------------------------------------------
+-- A1-A10. AUDIT TRIGGERS: record every important change in audit_log.
+-- changed_by comes from audit_context, which the app sets per transaction.
+-- ---------------------------------------------------------------------
+CREATE TRIGGER trg_audit_user_insert AFTER INSERT ON users
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, new_value, changed_by)
+    VALUES ('users', NEW.user_id, 'INSERT', 'account', NEW.name || ' <' || NEW.email || '>',
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_user_block AFTER UPDATE OF is_blocked ON users
+WHEN NEW.is_blocked <> OLD.is_blocked
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, old_value, new_value, changed_by)
+    VALUES ('users', NEW.user_id, 'UPDATE', 'is_blocked', OLD.is_blocked, NEW.is_blocked,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_product_insert AFTER INSERT ON products
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, new_value, changed_by)
+    VALUES ('products', NEW.product_id, 'INSERT', 'listing', NEW.title,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_product_price AFTER UPDATE OF price ON products
+WHEN NEW.price <> OLD.price
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, old_value, new_value, changed_by)
+    VALUES ('products', NEW.product_id, 'UPDATE', 'price', OLD.price, NEW.price,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_product_status AFTER UPDATE OF status ON products
+WHEN NEW.status <> OLD.status
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, old_value, new_value, changed_by)
+    VALUES ('products', NEW.product_id, 'UPDATE', 'status', OLD.status, NEW.status,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_order_insert AFTER INSERT ON orders
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, new_value, changed_by)
+    VALUES ('orders', NEW.order_id, 'INSERT', 'order', 'product #' || NEW.product_id || ' for ' || NEW.price,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_order_status AFTER UPDATE OF status ON orders
+WHEN NEW.status <> OLD.status
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, old_value, new_value, changed_by)
+    VALUES ('orders', NEW.order_id, 'UPDATE', 'status', OLD.status, NEW.status,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_offer_insert AFTER INSERT ON offers
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, new_value, changed_by)
+    VALUES ('offers', NEW.offer_id, 'INSERT', 'offer', 'product #' || NEW.product_id || ' for ' || NEW.amount,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_offer_status AFTER UPDATE OF status ON offers
+WHEN NEW.status <> OLD.status
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, old_value, new_value, changed_by)
+    VALUES ('offers', NEW.offer_id, 'UPDATE', 'status', OLD.status, NEW.status,
+            (SELECT user_id FROM audit_context WHERE id = 1));
+END;
+
+CREATE TRIGGER trg_audit_review_insert AFTER INSERT ON reviews
+BEGIN
+    INSERT INTO audit_log (table_name, row_id, action, field, new_value, changed_by)
+    VALUES ('reviews', NEW.review_id, 'INSERT', 'rating', NEW.rating,
+            (SELECT user_id FROM audit_context WHERE id = 1));
 END;
 
 -- =====================================================================

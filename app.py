@@ -8,6 +8,8 @@ Reset demo data:  python seed.py
 import os
 import shutil
 import sqlite3
+import textwrap
+from contextlib import contextmanager
 from datetime import datetime
 from functools import wraps
 
@@ -54,6 +56,32 @@ def close_db(_exc):
 def query(sql, args=(), one=False):
     rows = get_db().execute(sql, args).fetchall()
     return (rows[0] if rows else None) if one else rows
+
+
+@contextmanager
+def tx():
+    """One write transaction: COMMIT on success, ROLLBACK on any error.
+    It also records which user is acting, so the audit triggers can log "who"."""
+    db = get_db()
+    with db:
+        db.execute("UPDATE audit_context SET user_id = ? WHERE id = 1",
+                   (g.user["user_id"] if g.user else None,))
+        yield db
+
+
+# Friendly messages for errors raised by triggers and constraints.
+DB_ERRORS = {
+    "no longer available": "Someone bought this item just before you, so it's no longer available.",
+    "buy your own product": "You can't buy your own listing.",
+    "offer on your own product": "You can't make an offer on your own listing.",
+    "below the asking price": "Offer less than the asking price, or just buy it at the listed price.",
+    "offers.product_id, offers.buyer_id": "You already have an open offer on this item. Withdraw it to make a new one.",
+}
+
+
+def friendly_error(e, default):
+    msg = str(e)
+    return next((text for key, text in DB_ERRORS.items() if key in msg), default)
 
 
 # =====================================================================
@@ -118,6 +146,16 @@ def inr(value):
     return ",".join(parts) + "," + tail
 
 
+@app.template_filter("clean")
+def clean_value(v):
+    """Show stored numbers nicely: '1100.0' -> '1100'."""
+    try:
+        f = float(v)
+        return str(int(f)) if f.is_integer() else str(round(f, 2))
+    except (TypeError, ValueError):
+        return v
+
+
 @app.template_filter("ago")
 def time_ago(ts):
     try:
@@ -168,7 +206,7 @@ def register():
             flash("Use at least 6 characters for your password.", "danger")
             return render_template("register.html", form=f)
         try:
-            with get_db() as db:   # transaction: commit on success, rollback on error
+            with tx() as db:   # transaction: commit on success, rollback on error
                 cur = db.execute(
                     """INSERT INTO users (name, email, password_hash, branch, year, phone)
                        VALUES (?, ?, ?, ?, ?, ?)""",
@@ -246,7 +284,7 @@ def search():
 
     # Save the search -> this is what powers AI recommendations
     if q and g.user and g.user["role"] == "user":
-        with get_db() as db:
+        with tx() as db:
             db.execute("INSERT INTO search_history (user_id, query) VALUES (?, ?)",
                        (g.user["user_id"], q.lower()))
 
@@ -275,7 +313,7 @@ def _semantic_search(q, n=6):
 @app.route("/search/history/clear", methods=["POST"])
 @login_required
 def clear_search_history():
-    with get_db() as db:
+    with tx() as db:
         db.execute("DELETE FROM search_history WHERE user_id = ?", (g.user["user_id"],))
     flash("Search history cleared. Your recommendations will start fresh.", "info")
     return redirect(request.referrer or url_for("index"))
@@ -293,7 +331,7 @@ def product(pid):
 
     in_wishlist = False
     if g.user and g.user["role"] == "user" and not is_owner:
-        with get_db() as db:
+        with tx() as db:
             db.execute("INSERT INTO product_views (user_id, product_id) VALUES (?, ?)",
                        (g.user["user_id"], pid))
         in_wishlist = query("SELECT 1 FROM wishlist WHERE user_id = ? AND product_id = ?",
@@ -308,9 +346,31 @@ def product(pid):
                     (p["seller_id"],))
     verdict = price_predictor.price_verdict(get_db(), p) if p["status"] == "available" else None
     similar = recommender.similar_products(get_db(), pid)
+    also = recommender.also_viewed(get_db(), pid, g.user["user_id"] if g.user else None)
     views = query("SELECT COUNT(*) AS n FROM product_views WHERE product_id = ?", (pid,), one=True)["n"]
+
+    # Latest price change, read from the audit log (written by a trigger)
+    change = query("""SELECT old_value, new_value, changed_at FROM audit_log
+                      WHERE table_name = 'products' AND row_id = ? AND field = 'price'
+                      ORDER BY audit_id DESC LIMIT 1""", (pid,), one=True)
+    price_drop = None
+    if change and float(change["new_value"]) < float(change["old_value"]):
+        price_drop = {"was": float(change["old_value"]), "at": change["changed_at"]}
+
+    my_offer, open_offers, suggested_offer = None, 0, None
+    if is_owner:
+        open_offers = query("SELECT COUNT(*) AS n FROM offers WHERE product_id = ? AND status = 'pending'",
+                            (pid,), one=True)["n"]
+    elif g.user and g.user["role"] == "user" and p["status"] == "available":
+        my_offer = query("""SELECT * FROM offers WHERE product_id = ? AND buyer_id = ?
+                            AND status IN ('pending', 'countered')""", (pid, g.user["user_id"]), one=True)
+        # AI: start the buyer near the price model's estimate, a little under the asking price.
+        base = min(p["price"] * 0.92, verdict["estimate"]) if verdict else p["price"] * 0.9
+        suggested_offer = max(10, min(int(round(base / 10.0)) * 10, int(p["price"]) - 10))
     return render_template("product.html", p=p, is_owner=is_owner, in_wishlist=in_wishlist,
-                           reviews=reviews, verdict=verdict, similar=similar, views=views)
+                           reviews=reviews, verdict=verdict, similar=similar, views=views, also=also,
+                           price_drop=price_drop, my_offer=my_offer, open_offers=open_offers,
+                           suggested_offer=suggested_offer)
 
 
 # =====================================================================
@@ -329,7 +389,7 @@ def wishlist():
 @login_required
 def toggle_wishlist(pid):
     uid = g.user["user_id"]
-    with get_db() as db:
+    with tx() as db:
         removed = db.execute("DELETE FROM wishlist WHERE user_id = ? AND product_id = ?",
                              (uid, pid)).rowcount
         if not removed:
@@ -351,21 +411,88 @@ def buy(pid):
     try:
         # One atomic transaction. Trigger trg_order_validate aborts it if the item
         # was already bought by someone else (prevents double selling).
-        with get_db() as db:
+        with tx() as db:
             db.execute("INSERT INTO orders (product_id, buyer_id, price) VALUES (?, ?, ?)",
                        (pid, g.user["user_id"], p["price"]))
     except sqlite3.DatabaseError as e:
-        msg = str(e)
-        if "no longer available" in msg:
-            msg = "Someone bought this item just before you, so it's no longer available."
-        elif "own product" in msg:
-            msg = "You can't buy your own listing."
-        else:
-            msg = "We couldn't place your order. Please try again."
-        flash(msg, "danger")
+        flash(friendly_error(e, "We couldn't place your order. Please try again."), "danger")
         return redirect(url_for("product", pid=pid))
     flash("Order placed. Call the seller (number below) to arrange a campus pickup.", "success")
     return redirect(url_for("orders"))
+
+
+# =====================================================================
+#  Offers  (state machine + transaction)
+# =====================================================================
+@app.route("/offer/<int:pid>", methods=["POST"])
+@login_required
+def make_offer(pid):
+    amount = request.form.get("amount", type=float)
+    if not amount or amount <= 0:
+        flash("Enter how much you'd like to offer.", "warning")
+        return redirect(url_for("product", pid=pid))
+    try:
+        with tx() as db:   # trigger trg_offer_validate checks status, owner and amount
+            db.execute("INSERT INTO offers (product_id, buyer_id, amount, message) VALUES (?, ?, ?, ?)",
+                       (pid, g.user["user_id"], amount, request.form.get("message", "").strip() or None))
+    except sqlite3.DatabaseError as e:
+        flash(friendly_error(e, "We couldn't send your offer. Please try again."), "danger")
+        return redirect(url_for("product", pid=pid))
+    flash(f"Offer of ₹{inr(amount)} sent. We'll let you know when the seller replies.", "success")
+    return redirect(url_for("product", pid=pid))
+
+
+@app.route("/offers/<int:oid>/<action>", methods=["POST"])
+@login_required
+def offer_action(oid, action):
+    o = query("""SELECT o.*, p.seller_id, p.title, p.price AS asking FROM offers o
+                 JOIN products p ON p.product_id = o.product_id WHERE o.offer_id = ?""", (oid,), one=True)
+    if o is None:
+        abort(404)
+    uid = g.user["user_id"]
+    is_seller, is_buyer = uid == o["seller_id"], uid == o["buyer_id"]
+    allowed = {("accept", "pending"): is_seller, ("reject", "pending"): is_seller,
+               ("counter", "pending"): is_seller, ("withdraw", "pending"): is_buyer,
+               ("withdraw", "countered"): is_buyer, ("accept_counter", "countered"): is_buyer}
+    back = request.form.get("next") or url_for("orders", tab="offers")
+    if not allowed.get((action, o["status"])):
+        flash("This offer has already changed. Here's its latest status.", "info")
+        return redirect(back)
+    try:
+        with tx() as db:
+            if action in ("accept", "accept_counter"):
+                price = o["amount"] if action == "accept" else o["counter_amount"]
+                # One transaction: accept the offer, then create the order at the agreed price.
+                # If the item was sold meanwhile, the order trigger aborts and BOTH steps roll back.
+                db.execute("""UPDATE offers SET status = 'accepted', updated_at = datetime('now', 'localtime')
+                              WHERE offer_id = ?""", (oid,))
+                db.execute("INSERT INTO orders (product_id, buyer_id, price) VALUES (?, ?, ?)",
+                           (o["product_id"], o["buyer_id"], price))
+            elif action == "counter":
+                counter = request.form.get("counter_amount", type=float)
+                if not counter or not o["amount"] < counter < o["asking"]:
+                    raise ValueError
+                db.execute("""UPDATE offers SET status = 'countered', counter_amount = ?,
+                              updated_at = datetime('now', 'localtime') WHERE offer_id = ?""", (counter, oid))
+            else:
+                db.execute("""UPDATE offers SET status = ?, updated_at = datetime('now', 'localtime')
+                              WHERE offer_id = ?""", ({"reject": "rejected", "withdraw": "withdrawn"}[action], oid))
+    except ValueError:
+        flash(f"Counter with an amount between ₹{inr(o['amount'])} and ₹{inr(o['asking'])}.", "warning")
+        return redirect(back)
+    except sqlite3.DatabaseError as e:
+        flash(friendly_error(e, "Something went wrong. Please try again."), "danger")
+        return redirect(back)
+    flash({"accept": f"Deal done at ₹{inr(o['amount'])}. The order is in your sales.",
+           "accept_counter": f"Deal done at ₹{inr(o['counter_amount'] or 0)}. Call the seller to arrange pickup.",
+           "counter": "Counter-offer sent.",
+           "reject": "Offer declined. The buyer has been notified.",
+           "withdraw": "Offer withdrawn."}[action], "success")
+    if action == "accept":
+        return redirect(url_for("orders", tab="sales"))
+    if action == "accept_counter":
+        return redirect(url_for("orders"))
+    return redirect(back)
 
 
 @app.route("/orders")
@@ -387,8 +514,21 @@ def orders():
                      JOIN users b      ON b.user_id = o.buyer_id
                      LEFT JOIN reviews r ON r.order_id = o.order_id
                      WHERE p.seller_id = ? ORDER BY o.ordered_at DESC""", (uid,))
-    return render_template("orders.html", purchases=purchases, sales=sales,
-                           tab=request.args.get("tab", "purchases"))
+    open_first = "CASE o.status WHEN 'pending' THEN 0 WHEN 'countered' THEN 1 ELSE 2 END, o.created_at DESC"
+    offers_in = query(f"""SELECT o.*, p.title, p.price AS asking, c.icon AS category_icon, b.name AS buyer_name
+                          FROM offers o
+                          JOIN products p   ON p.product_id = o.product_id
+                          JOIN categories c ON c.category_id = p.category_id
+                          JOIN users b      ON b.user_id = o.buyer_id
+                          WHERE p.seller_id = ? ORDER BY {open_first}""", (uid,))
+    offers_out = query(f"""SELECT o.*, p.title, p.price AS asking, c.icon AS category_icon, s.name AS seller_name
+                           FROM offers o
+                           JOIN products p   ON p.product_id = o.product_id
+                           JOIN categories c ON c.category_id = p.category_id
+                           JOIN users s      ON s.user_id = p.seller_id
+                           WHERE o.buyer_id = ? ORDER BY {open_first}""", (uid,))
+    return render_template("orders.html", purchases=purchases, sales=sales, offers_in=offers_in,
+                           offers_out=offers_out, tab=request.args.get("tab", "purchases"))
 
 
 def _own_order(oid):
@@ -403,7 +543,7 @@ def _own_order(oid):
 @login_required
 def cancel_order(oid):
     if _own_order(oid)["status"] == "placed":
-        with get_db() as db:   # trigger trg_order_cancelled re-lists the product
+        with tx() as db:   # trigger trg_order_cancelled re-lists the product
             db.execute("UPDATE orders SET status = 'cancelled' WHERE order_id = ?", (oid,))
         flash("Order cancelled. The item is back on sale.", "info")
     return redirect(url_for("orders"))
@@ -413,7 +553,7 @@ def cancel_order(oid):
 @login_required
 def complete_order(oid):
     if _own_order(oid)["status"] == "placed":
-        with get_db() as db:
+        with tx() as db:
             db.execute("UPDATE orders SET status = 'completed' WHERE order_id = ?", (oid,))
         flash("Marked as received. How was the seller? Leave a rating below.", "success")
     return redirect(url_for("orders"))
@@ -428,7 +568,7 @@ def review_order(oid):
         flash("You can rate the seller after you mark the order as received.", "warning")
         return redirect(url_for("orders"))
     try:
-        with get_db() as db:
+        with tx() as db:
             db.execute("INSERT INTO reviews (order_id, rating, comment) VALUES (?, ?, ?)",
                        (oid, rating, request.form.get("comment", "").strip()))
         flash("Thanks for your review!", "success")
@@ -461,7 +601,7 @@ def sell():
     if request.method == "POST":
         d = _listing_from_form(request.form)
         check = spam_detector.check_listing(d["title"], d["description"], d["price"], d["original_price"])
-        with get_db() as db:
+        with tx() as db:
             # Trigger trg_flagged_listing alerts admins when is_flagged = 1
             cur = db.execute(
                 """INSERT INTO products (seller_id, category_id, title, description, original_price,
@@ -491,7 +631,7 @@ def edit_listing(pid):
     if request.method == "POST":
         d = _listing_from_form(request.form)
         check = spam_detector.check_listing(d["title"], d["description"], d["price"], d["original_price"])
-        with get_db() as db:
+        with tx() as db:
             db.execute(
                 """UPDATE products SET title = ?, description = ?, category_id = ?, original_price = ?,
                           price = ?, condition = ?, age_months = ?, spam_score = ?
@@ -514,7 +654,7 @@ def edit_listing(pid):
 @app.route("/listing/<int:pid>/remove", methods=["POST"])
 @login_required
 def remove_listing(pid):
-    with get_db() as db:
+    with tx() as db:
         db.execute("""UPDATE products SET status = 'removed'
                       WHERE product_id = ? AND seller_id = ? AND status IN ('available', 'pending')""",
                    (pid, g.user["user_id"]))
@@ -568,7 +708,7 @@ def profile():
     uid = g.user["user_id"]
     if request.method == "POST":
         f = request.form
-        with get_db() as db:
+        with tx() as db:
             db.execute("UPDATE users SET name = ?, branch = ?, year = ?, phone = ? WHERE user_id = ?",
                        (f["name"].strip(), f["branch"], f.get("year", type=int), f["phone"].strip(), uid))
         flash("Profile saved.", "success")
@@ -592,7 +732,7 @@ def profile():
 def notifications():
     items = query("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC, notif_id DESC",
                   (g.user["user_id"],))
-    with get_db() as db:
+    with tx() as db:
         db.execute("UPDATE notifications SET is_read = 1 WHERE user_id = ?", (g.user["user_id"],))
     return render_template("notifications.html", items=items)
 
@@ -636,7 +776,7 @@ def admin_listing_action(pid, action):
     new_status = {"approve": "available", "reject": "rejected", "remove": "removed"}.get(action)
     if new_status is None:
         abort(400)
-    with get_db() as db:   # trigger trg_listing_moderated notifies the seller
+    with tx() as db:   # trigger trg_listing_moderated notifies the seller
         db.execute("UPDATE products SET status = ?, is_flagged = 0 WHERE product_id = ?",
                    (new_status, pid))
     flash({"available": "Listing approved. It's live now and the seller has been notified.",
@@ -661,7 +801,7 @@ def admin_users():
 @app.route("/admin/users/<int:uid>/toggle-block", methods=["POST"])
 @admin_required
 def admin_toggle_block(uid):
-    with get_db() as db:
+    with tx() as db:
         db.execute("UPDATE users SET is_blocked = 1 - is_blocked WHERE user_id = ? AND role = 'user'",
                    (uid,))
     u = query("SELECT name, is_blocked FROM users WHERE user_id = ?", (uid,), one=True)
@@ -684,34 +824,241 @@ def admin_orders():
     return render_template("admin/orders.html", orders=rows)
 
 
-@app.route("/admin/database", methods=["GET", "POST"])
+def _sql(text):
+    return textwrap.dedent(text).strip()
+
+
+def _run(title, icon, sql, params=()):
+    """Run a predefined, parameterised query and keep its SQL for the "Show SQL" panel."""
+    cur = get_db().execute(sql, params)
+    columns = [c[0] for c in cur.description or []]
+    return {"title": title, "icon": icon, "sql": sql, "columns": columns, "rows": cur.fetchall(),
+            "visible": [c for c in columns if not c.startswith("_")]}   # "_pid"/"_uid" are link targets
+
+
+USER_PROFILE_SQL = _sql("""
+    SELECT u.user_id, u.name, u.email, u.role, u.branch, u.year, u.phone, u.is_blocked, u.created_at,
+           (SELECT COUNT(*) FROM products WHERE seller_id = u.user_id AND status = 'available') AS live_listings,
+           (SELECT COUNT(*) FROM orders o JOIN products p ON p.product_id = o.product_id
+             WHERE p.seller_id = u.user_id AND o.status <> 'cancelled') AS items_sold,
+           (SELECT COUNT(*) FROM orders WHERE buyer_id = u.user_id AND status <> 'cancelled') AS items_bought,
+           (SELECT COALESCE(SUM(o.price), 0) FROM orders o JOIN products p ON p.product_id = o.product_id
+             WHERE p.seller_id = u.user_id AND o.status <> 'cancelled') AS earned,
+           (SELECT COALESCE(SUM(price), 0) FROM orders
+             WHERE buyer_id = u.user_id AND status <> 'cancelled') AS spent,
+           COALESCE(sr.avg_rating, 0) AS rating, COALESCE(sr.review_count, 0) AS reviews
+    FROM users u LEFT JOIN v_seller_ratings sr ON sr.seller_id = u.user_id
+    WHERE u.user_id = ?""")
+
+USER_SECTIONS = [
+    ("Listings", "package", """
+        SELECT p.product_id AS _pid, p.title, c.name AS category, p.price, p.status, p.created_at AS listed_at
+        FROM products p JOIN categories c ON c.category_id = p.category_id
+        WHERE p.seller_id = ? ORDER BY p.created_at DESC"""),
+    ("Purchases", "bag", """
+        SELECT p.product_id AS _pid, p.title, s.name AS seller, o.price, o.status, o.ordered_at
+        FROM orders o JOIN products p ON p.product_id = o.product_id
+                      JOIN users s    ON s.user_id = p.seller_id
+        WHERE o.buyer_id = ? ORDER BY o.ordered_at DESC"""),
+    ("Sales", "tag", """
+        SELECT p.product_id AS _pid, p.title, b.name AS buyer, o.price, o.status, o.ordered_at
+        FROM orders o JOIN products p ON p.product_id = o.product_id
+                      JOIN users b    ON b.user_id = o.buyer_id
+        WHERE p.seller_id = ? ORDER BY o.ordered_at DESC"""),
+    ("Offers made", "receipt", """
+        SELECT p.product_id AS _pid, p.title, p.price AS asking, o.amount, o.counter_amount AS counter,
+               o.status, o.created_at AS offered_at
+        FROM offers o JOIN products p ON p.product_id = o.product_id
+        WHERE o.buyer_id = ? ORDER BY o.created_at DESC"""),
+    ("Offers received", "inbox", """
+        SELECT p.product_id AS _pid, p.title, b.name AS buyer, p.price AS asking, o.amount,
+               o.counter_amount AS counter, o.status, o.created_at AS offered_at
+        FROM offers o JOIN products p ON p.product_id = o.product_id
+                      JOIN users b    ON b.user_id = o.buyer_id
+        WHERE p.seller_id = ? ORDER BY o.created_at DESC"""),
+    ("Reviews received", "star", """
+        SELECT p.title, b.name AS buyer, r.rating, r.comment, r.created_at AS reviewed_at
+        FROM reviews r JOIN orders o   ON o.order_id = r.order_id
+                       JOIN products p ON p.product_id = o.product_id
+                       JOIN users b    ON b.user_id = o.buyer_id
+        WHERE p.seller_id = ? ORDER BY r.created_at DESC"""),
+    ("Wishlist", "heart", """
+        SELECT p.product_id AS _pid, p.title, p.price, p.status, w.added_at
+        FROM wishlist w JOIN products p ON p.product_id = w.product_id
+        WHERE w.user_id = ? ORDER BY w.added_at DESC"""),
+    ("Search history", "search", """
+        SELECT query AS search, searched_at FROM search_history
+        WHERE user_id = ? ORDER BY searched_at DESC LIMIT 20"""),
+    ("Recently viewed", "eye", """
+        SELECT p.product_id AS _pid, p.title, COUNT(*) AS times, MAX(v.viewed_at) AS last_viewed_at
+        FROM product_views v JOIN products p ON p.product_id = v.product_id
+        WHERE v.user_id = ? GROUP BY v.product_id ORDER BY last_viewed_at DESC LIMIT 15"""),
+    ("Notifications", "bell", """
+        SELECT message, created_at FROM notifications
+        WHERE user_id = ? ORDER BY notif_id DESC LIMIT 15"""),
+    ("Activity (audit log)", "zap", """
+        SELECT a.table_name, a.row_id, a.action, a.field, a.old_value AS old, a.new_value AS new, a.changed_at
+        FROM audit_log a WHERE a.changed_by = ? ORDER BY a.audit_id DESC LIMIT 30"""),
+]
+
+PRODUCT_SECTIONS = [
+    ("Price and status history", "clock", """
+        SELECT a.field, a.old_value AS old, a.new_value AS new, u.user_id AS _uid, u.name AS changed_by, a.changed_at
+        FROM audit_log a LEFT JOIN users u ON u.user_id = a.changed_by
+        WHERE a.table_name = 'products' AND a.row_id = ? ORDER BY a.audit_id DESC"""),
+    ("Offers", "receipt", """
+        SELECT b.user_id AS _uid, b.name AS buyer, o.amount, o.counter_amount AS counter, o.status, o.created_at AS offered_at
+        FROM offers o JOIN users b ON b.user_id = o.buyer_id
+        WHERE o.product_id = ? ORDER BY o.created_at DESC"""),
+    ("Orders", "bag", """
+        SELECT b.user_id AS _uid, b.name AS buyer, o.price, o.status, o.ordered_at
+        FROM orders o JOIN users b ON b.user_id = o.buyer_id
+        WHERE o.product_id = ? ORDER BY o.ordered_at DESC"""),
+    ("Saved to wishlist by", "heart", """
+        SELECT u.user_id AS _uid, u.name AS student, w.added_at
+        FROM wishlist w JOIN users u ON u.user_id = w.user_id WHERE w.product_id = ?"""),
+    ("Viewed by", "eye", """
+        SELECT u.user_id AS _uid, u.name AS student, COUNT(*) AS views, MAX(v.viewed_at) AS last_viewed_at
+        FROM product_views v JOIN users u ON u.user_id = v.user_id
+        WHERE v.product_id = ? GROUP BY u.user_id ORDER BY views DESC"""),
+    ("Also viewed (collaborative filtering)", "sparkles", """
+        SELECT d.product_id AS _pid, d.title, COUNT(DISTINCT v2.user_id) AS shared_viewers
+        FROM product_views v1
+        JOIN product_views v2    ON v2.user_id = v1.user_id AND v2.product_id <> v1.product_id
+        JOIN v_product_details d ON d.product_id = v2.product_id
+        WHERE v1.product_id = ? GROUP BY v2.product_id ORDER BY shared_viewers DESC LIMIT 6"""),
+]
+
+REPORTS = {
+    "leaderboard": ("Seller leaderboard", "CTE + view", """
+        WITH seller_sales AS (
+          SELECT p.seller_id, COUNT(*) AS sold, SUM(o.price) AS revenue
+          FROM orders o JOIN products p ON p.product_id = o.product_id
+          WHERE o.status <> 'cancelled' GROUP BY p.seller_id
+        )
+        SELECT u.user_id AS _uid, u.name AS seller, ss.sold, ss.revenue, COALESCE(r.avg_rating, 0) AS rating
+        FROM seller_sales ss JOIN users u ON u.user_id = ss.seller_id
+        LEFT JOIN v_seller_ratings r ON r.seller_id = ss.seller_id
+        ORDER BY ss.revenue DESC"""),
+    "demand": ("Unmet demand", "Correlated subquery", """
+        SELECT s.query AS search,
+               (SELECT COUNT(*) FROM products p
+                WHERE p.status = 'available' AND p.title LIKE '%' || s.query || '%') AS matching_items
+        FROM (SELECT DISTINCT LOWER(query) AS query FROM search_history) s
+        ORDER BY matching_items ASC, search"""),
+    "price_rank": ("Price rank in each category", "Window function", """
+        SELECT c.name AS category, p.product_id AS _pid, p.title, p.price,
+               RANK() OVER (PARTITION BY p.category_id ORDER BY p.price DESC) AS price_rank
+        FROM products p JOIN categories c ON c.category_id = p.category_id
+        WHERE p.status = 'available' ORDER BY c.name, price_rank"""),
+    "never_viewed": ("Listings nobody has viewed", "NOT EXISTS", """
+        SELECT p.product_id AS _pid, p.title, p.price, p.created_at AS listed_at
+        FROM products p
+        WHERE p.status = 'available'
+          AND NOT EXISTS (SELECT 1 FROM product_views v WHERE v.product_id = p.product_id)"""),
+    "offers": ("Offer outcomes", "GROUP BY + aggregate", """
+        SELECT o.status, COUNT(*) AS offers,
+               ROUND(AVG(100.0 * (p.price - o.amount) / p.price)) AS avg_discount_asked_pct
+        FROM offers o JOIN products p ON p.product_id = o.product_id
+        GROUP BY o.status ORDER BY offers DESC"""),
+    "price_drops": ("Price drops", "Audit log (trigger output)", """
+        SELECT p.product_id AS _pid, p.title, a.old_value AS old, a.new_value AS new, u.name AS changed_by, a.changed_at
+        FROM audit_log a JOIN products p ON p.product_id = a.row_id
+        LEFT JOIN users u ON u.user_id = a.changed_by
+        WHERE a.table_name = 'products' AND a.field = 'price'
+          AND CAST(a.new_value AS REAL) < CAST(a.old_value AS REAL)
+        ORDER BY a.audit_id DESC"""),
+    "category_sales": ("Sales by category", "View", """
+        SELECT name AS category, items_sold, revenue FROM v_category_sales ORDER BY revenue DESC"""),
+    "condition": ("Value kept by condition", "GROUP BY + AVG", """
+        SELECT condition, COUNT(*) AS items, ROUND(AVG(100.0 * price / original_price)) AS avg_pct_of_mrp
+        FROM products WHERE status IN ('available', 'sold')
+        GROUP BY condition ORDER BY avg_pct_of_mrp DESC"""),
+    "buyers_sellers": ("Who buys, who sells", "UNION", """
+        SELECT user_id AS _uid, name AS student, 'Seller' AS activity FROM users
+        WHERE user_id IN (SELECT seller_id FROM products)
+        UNION
+        SELECT user_id, name, 'Buyer' FROM users
+        WHERE user_id IN (SELECT buyer_id FROM orders)
+        ORDER BY student"""),
+}
+
+
+@app.route("/admin/lookup")
 @admin_required
-def admin_database():
-    """Database explorer: shows schema objects and runs read-only SELECT queries."""
+def admin_lookup():
+    """Look up any student or item by name: no SQL typing needed. Every panel can show
+    the parameterised query that produced it, for explaining in a viva."""
+    q = request.args.get("q", "").strip()
+    uid = request.args.get("user", type=int)
+    pid = request.args.get("product", type=int)
+    report_key = request.args.get("report")
+    ctx = {"q": q, "reports": REPORTS, "report_key": report_key}
+    ctx["names"] = query("""SELECT name AS label, 'Student' AS kind FROM users
+                            UNION ALL SELECT title, 'Item' FROM products ORDER BY 1""")
+
+    if q and not uid and not pid:
+        users = query("""SELECT user_id, name, email, branch, year, role FROM users
+                         WHERE name LIKE ? OR email LIKE ? ORDER BY name""", (f"%{q}%", f"%{q}%"))
+        items = query("""SELECT product_id, title, price, status, category_icon, category_id, seller_name
+                         FROM v_product_details WHERE title LIKE ? ORDER BY title LIMIT 20""", (f"%{q}%",))
+        if len(users) == 1 and not items:
+            return redirect(url_for("admin_lookup", user=users[0]["user_id"]))
+        if len(items) == 1 and not users:
+            return redirect(url_for("admin_lookup", product=items[0]["product_id"]))
+        ctx.update(match_users=users, match_items=items)
+
+    if uid:
+        person = query(USER_PROFILE_SQL, (uid,), one=True)
+        if person is None:
+            abort(404)
+        ctx.update(person=person, profile_sql=USER_PROFILE_SQL,
+                   sections=[_run(t, i, _sql(sql), (uid,)) for t, i, sql in USER_SECTIONS])
+    elif pid:
+        item = query("SELECT * FROM v_product_details WHERE product_id = ?", (pid,), one=True)
+        if item is None:
+            abort(404)
+        ctx.update(item=item, sections=[_run(t, i, _sql(sql), (pid,)) for t, i, sql in PRODUCT_SECTIONS])
+
+    if report_key in REPORTS:
+        title, concept, sql = REPORTS[report_key]
+        ctx["report"] = dict(_run(title, "chart", _sql(sql)), concept=concept)
+
     objects = query("""SELECT type, name, tbl_name, sql FROM sqlite_master
                        WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
                        ORDER BY CASE type WHEN 'table' THEN 1 WHEN 'view' THEN 2
                                           WHEN 'trigger' THEN 3 ELSE 4 END, name""")
-    counts = {o["name"]: query(f'SELECT COUNT(*) AS n FROM "{o["name"]}"', one=True)["n"]
-              for o in objects if o["type"] == "table"}
+    ctx["objects"] = objects
+    ctx["counts"] = {o["name"]: query(f'SELECT COUNT(*) AS n FROM "{o["name"]}"', one=True)["n"]
+                     for o in objects if o["type"] == "table"}
+    return render_template("admin/lookup.html", **ctx)
 
-    sql = request.form.get("sql", "SELECT * FROM v_seller_ratings;").strip()
-    columns, rows, error = [], [], None
-    if request.method == "POST":
-        if not sql.lower().lstrip("( ").startswith(("select", "with")):
-            error = "Only SELECT queries are allowed here."
-        else:
-            try:
-                # Separate read-only connection: even a tricky query cannot change data.
-                ro = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-                cur = ro.execute(sql)
-                columns = [c[0] for c in cur.description or []]
-                rows = cur.fetchmany(200)
-                ro.close()
-            except sqlite3.Error as e:
-                error = str(e)
-    return render_template("admin/database.html", objects=objects, counts=counts, sql=sql,
-                           columns=columns, rows=rows, error=error)
+
+@app.route("/admin/database")
+@admin_required
+def admin_database():
+    return redirect(url_for("admin_lookup"))
+
+
+@app.route("/admin/audit")
+@admin_required
+def admin_audit():
+    table = request.args.get("table", "")
+    tables = ["products", "orders", "offers", "users", "reviews"]
+    sql = """SELECT a.*, u.name AS actor, p.title AS product_title
+             FROM audit_log a
+             LEFT JOIN users u    ON u.user_id = a.changed_by
+             LEFT JOIN products p ON a.table_name = 'products' AND p.product_id = a.row_id"""
+    args = ()
+    if table in tables:
+        sql += " WHERE a.table_name = ?"
+        args = (table,)
+    rows = query(sql + " ORDER BY a.audit_id DESC LIMIT 200", args)
+    counts = {r["table_name"]: r["n"] for r in query(
+        "SELECT table_name, COUNT(*) AS n FROM audit_log GROUP BY table_name")}
+    triggers = query("SELECT name, tbl_name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'trg_audit%' ORDER BY name")
+    return render_template("admin/audit.html", rows=rows, table=table, tables=tables, counts=counts,
+                           total=sum(counts.values()), triggers=triggers)
 
 
 @app.errorhandler(403)

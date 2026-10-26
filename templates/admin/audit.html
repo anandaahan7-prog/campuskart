@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, status_pill %}
+{% block title %}Audit log{% endblock %}
+
+{% macro val(field, v) -%}
+  {%- if v is none -%}<span class="muted">–</span>
+  {%- elif field == 'price' -%}₹{{ v|clean|int|inr }}
+  {%- elif field == 'status' -%}{{ status_pill(v) }}
+  {%- elif field == 'is_blocked' -%}{{ 'Blocked' if v|clean == '1' else 'Active' }}
+  {%- else -%}{{ v|clean }}
+  {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Audit log</h1>
+  <p>Every change below was written automatically by {{ triggers|length }} database triggers, not by the
+     application code. Who made each change comes from the <code>audit_context</code> row the app sets
+     at the start of every transaction.</p>
+</div>
+{% include "admin/_nav.html" %}
+
+<nav class="tabs" aria-label="Filter by table">
+  <a href="{{ url_for('admin_audit') }}" {% if not table %}aria-current="page"{% endif %}>All <span class="count">{{ total }}</span></a>
+  {% for t in tables %}
+  <a href="{{ url_for('admin_audit', table=t) }}" {% if table == t %}aria-current="page"{% endif %}>{{ t|capitalize }} <span class="count">{{ counts.get(t, 0) }}</span></a>
+  {% endfor %}
+</nav>
+
+{% if rows %}
+<ol class="audit-list">
+  {% for a in rows %}
+  <li class="audit-item">
+    <span class="audit-dot {{ 'is-insert' if a.action == 'INSERT' else '' }}" aria-hidden="true">{{ icon('plus' if a.action == 'INSERT' else 'edit', 13) }}</span>
+    <div class="grow">
+      <p class="mb-0">
+        {% if a.changed_by %}<a class="strong-link" href="{{ url_for('admin_lookup', user=a.changed_by) }}">{{ a.actor }}</a>{% else %}<strong>System</strong>{% endif %}
+        {% if a.action == 'INSERT' %}created {{ 'an' if a.field[0] in 'aeiou' else 'a' }} <strong>{{ a.field }}</strong>
+        {% else %}changed <strong>{{ a.field.replace('_', ' ') }}</strong>{% endif %}
+        on
+        {% if a.table_name == 'products' %}<a href="{{ url_for('admin_lookup', product=a.row_id) }}">{{ a.product_title or 'product #' ~ a.row_id }}</a>
+        {% elif a.table_name == 'users' %}<a href="{{ url_for('admin_lookup', user=a.row_id) }}">user #{{ a.row_id }}</a>
+        {% else %}{{ a.table_name[:-1] }} #{{ a.row_id }}{% endif %}
+      </p>
+      <div class="audit-change">
+        {% if a.action == 'UPDATE' %}{{ val(a.field, a.old_value) }} {{ icon('arrow-right', 14) }} {{ val(a.field, a.new_value) }}
+        {% else %}<span class="muted">{{ a.new_value|clean }}</span>{% endif %}
+      </div>
+    </div>
+    <time class="xs muted nowrap" datetime="{{ a.changed_at }}" title="{{ a.changed_at }}">{{ a.changed_at|ago }}</time>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<div class="card empty"><div class="empty-icon">{{ icon('zap', 24) }}</div><h2>No changes recorded yet</h2>
+  <p>Edit a price, place an order or make an offer, and it will appear here instantly.</p></div>
+{% endif %}
+
+<details class="card sql-peek mt-6">
+  <summary>{{ icon('zap', 14) }}The {{ triggers|length }} audit triggers</summary>
+  <ul class="trigger-list">
+    {% for t in triggers %}<li><code>{{ t.name }}</code> <span class="xs muted">on {{ t.tbl_name }}</span></li>{% endfor %}
+  </ul>
+</details>
+{% endblock %}

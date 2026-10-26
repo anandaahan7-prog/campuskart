@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import icon, status_pill, cat_picture %}
+{% from "_macros.html" import icon, status_pill, cat_picture, swatch %}
 {% block title %}Data lookup{% endblock %}
 
 {% macro cell(col, v, row) -%}
@@ -12,7 +12,7 @@
   {%- elif col == 'title' and '_pid' in keys -%}<a class="item-link" href="{{ url_for('admin_lookup', product=row['_pid']) }}">{{ v }}</a>
   {%- elif col in ['buyer', 'seller', 'student', 'changed_by'] and '_uid' in keys and row['_uid'] -%}<a class="item-link" href="{{ url_for('admin_lookup', user=row['_uid']) }}">{{ v }}</a>
   {%- elif col in ['old', 'new'] -%}<code>{{ v|clean }}</code>
-  {%- elif col == 'action' -%}<span class="pill {{ 'pill-good' if v == 'INSERT' else 'pill-brand' }}">{{ v }}</span>
+  {%- elif col == 'action' -%}<span class="pill {{ 'pill-good' if v == 'INSERT' else 'pill-quiet' }}">{{ v|capitalize }}</span>
   {%- else -%}{{ v|clean }}
   {%- endif -%}
 {%- endmacro %}
@@ -22,7 +22,7 @@
   {% if sec.rows %}
   <div class="table-wrap">
     <table>
-      <thead><tr>{% for c in cols %}<th scope="col" class="{{ 'num' if c in ['price','amount','counter','asking','revenue','earned','spent','times','views','sold','offers','items','shared_viewers','matching_items','price_rank','items_sold'] }}">{{ c.replace('_', ' ') }}</th>{% endfor %}</tr></thead>
+      <thead><tr>{% for c in cols %}<th scope="col" class="{{ 'num' if c in ['price','amount','counter','asking','revenue','earned','spent','times','views','sold','offers','items','shared_viewers','matching_items','price_rank','items_sold'] }}">{{ c.replace('_', ' ')|capitalize }}</th>{% endfor %}</tr></thead>
       <tbody>
       {% for r in sec.rows %}
       <tr>{% for c in cols %}<td class="{{ 'num' if c in ['price','amount','counter','asking','revenue','earned','spent','times','views','sold','offers','items','shared_viewers','matching_items','price_rank','items_sold'] }}">{{ cell(c, r[c], r) }}</td>{% endfor %}</tr>
@@ -40,7 +40,10 @@
 {% endmacro %}
 
 {% block content %}
-<h1>Data lookup</h1>
+<div class="page-head">
+  <h1>Data lookup</h1>
+  <p>Type a student's or an item's name. Every panel runs a ready-made, parameterised query, and shows its SQL.</p>
+</div>
 {% include "admin/_nav.html" %}
 
 <section class="lookup-hero card" aria-labelledby="lookup-title">
@@ -60,13 +63,12 @@
     </datalist>
   </form>
   <div class="chips mt-3" aria-label="Quick picks">
-    <span class="xs muted">Quick picks:</span>
+    <span class="small muted">Quick picks:</span>
     {% for name in ['Rahul Sharma', 'Priya Patel', 'Vikram Singh', 'Arjun Nair', 'Casio', 'Database System'] %}
     <a class="chip" href="{{ url_for('admin_lookup', q=name) }}">{{ name }}</a>
     {% endfor %}
   </div>
-  <p class="xs muted mt-3 mb-0">No SQL needed: each panel below runs a ready-made, parameterised query.
-    Open <strong>Show SQL</strong> on any panel to see exactly what ran.</p>
+  <p class="note mt-3 mb-0">no SQL to type: open “Show SQL” on any panel to see exactly what ran</p>
 </section>
 
 {# ---------- Matches ---------- #}
@@ -76,7 +78,7 @@
   {% if match_users or match_items %}
   <div class="two-col">
     <div class="card">
-      <h3 class="title-icon">{{ icon('users', 18) }}Students <span class="pill">{{ match_users|length }}</span></h3>
+      <h3 class="title-icon">Students <span class="pill pill-quiet">{{ match_users|length }}</span></h3>
       {% for u in match_users %}
       <a class="match-row" href="{{ url_for('admin_lookup', user=u.user_id) }}">
         <span class="avatar" aria-hidden="true">{{ u.name[0] }}</span>
@@ -86,10 +88,10 @@
       {% else %}<p class="muted small mb-0">No students match.</p>{% endfor %}
     </div>
     <div class="card">
-      <h3 class="title-icon">{{ icon('package', 18) }}Items <span class="pill">{{ match_items|length }}</span></h3>
+      <h3 class="title-icon">Items <span class="pill pill-quiet">{{ match_items|length }}</span></h3>
       {% for i in match_items %}
       <a class="match-row" href="{{ url_for('admin_lookup', product=i.product_id) }}">
-        <span class="match-emoji" aria-hidden="true">{{ i.category_icon }}</span>
+        {{ swatch(i.category_id) }}
         <span class="grow"><strong>{{ i.title }}</strong><span class="subtext">₹{{ i.price|inr }} · {{ i.seller_name }}</span></span>
         {{ status_pill(i.status) }}
       </a>
@@ -112,10 +114,10 @@
       <h2 id="person-title" class="mb-0">{{ person.name }}</h2>
       <p class="muted mb-0">{{ person.email }}{% if person.phone %} · {{ person.phone }}{% endif %}</p>
       <div class="cluster mt-2">
-        {% if person.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}
-        {% if person.branch %}<span class="pill pill-brand">{{ person.branch }}{% if person.year %} · Year {{ person.year }}{% endif %}</span>{% endif %}
+        {% if person.role == 'admin' %}<span class="pill">Admin</span>{% endif %}
+        {% if person.branch %}<span class="pill pill-quiet">{{ person.branch }}{% if person.year %} · Year {{ person.year }}{% endif %}</span>{% endif %}
         {% if person.is_blocked %}<span class="pill pill-bad">Blocked</span>{% else %}<span class="pill pill-good">Active</span>{% endif %}
-        <span class="pill">Joined {{ person.created_at|ago }}</span>
+        <span class="pill pill-quiet">Joined {{ person.created_at|ago }}</span>
       </div>
     </div>
   </div>
@@ -134,15 +136,15 @@
 {% if item %}
 <section class="section" aria-labelledby="item-title">
   <div class="card profile-head">
-    <div class="thumb tint cat-{{ item.category_id }} lookup-thumb">{{ cat_picture(item.category_id, item.category_icon, 'thumb-img', 72) }}</div>
+    <div class="lookup-thumb paper-{{ item.category_id }}">{{ cat_picture(item.category_id, item.category_icon, 64) }}</div>
     <div class="grow">
       <h2 id="item-title" class="mb-0">{{ item.title }}</h2>
       <p class="muted mb-0">₹{{ item.price|inr }} (MRP ₹{{ item.original_price|inr }}) · {{ item.condition }} · {{ item.category_name }}</p>
       <div class="cluster mt-2">
         {{ status_pill(item.status) }}
-        <a class="pill pill-brand" href="{{ url_for('admin_lookup', user=item.seller_id) }}">Seller: {{ item.seller_name }}</a>
-        <span class="pill">Listed {{ item.created_at|ago }}</span>
-        <a class="pill" href="{{ url_for('product', pid=item.product_id) }}">Open listing {{ icon('arrow-right', 12) }}</a>
+        <a class="pill pill-quiet" href="{{ url_for('admin_lookup', user=item.seller_id) }}">Seller: {{ item.seller_name }}</a>
+        <span class="pill pill-quiet">Listed {{ item.created_at|ago }}</span>
+        <a class="pill pill-quiet" href="{{ url_for('product', pid=item.product_id) }}">Open the slip {{ icon('arrow-right', 12) }}</a>
       </div>
     </div>
   </div>
@@ -153,7 +155,7 @@
 <div class="lookup-grid">
   {% for sec in sections %}
   <section class="card lookup-panel" aria-labelledby="sec-{{ loop.index }}">
-    <h3 id="sec-{{ loop.index }}" class="title-icon">{{ icon(sec.icon, 17) }}{{ sec.title }} <span class="pill">{{ sec.rows|length }}</span></h3>
+    <h3 id="sec-{{ loop.index }}">{{ sec.title }} <span class="pill pill-quiet">{{ sec.rows|length }}</span></h3>
     {{ data_table(sec) }}
   </section>
   {% endfor %}
@@ -163,7 +165,8 @@
 {# ---------- One-click reports ---------- #}
 <section class="section" aria-labelledby="reports-title">
   <div class="section-head">
-    <div><span class="eyebrow">One click, no typing</span><h2 id="reports-title">Ready-made reports</h2></div>
+    <h2 id="reports-title">Ready-made reports</h2>
+    <span class="sub">One click each. Every report shows the SQL concept it demonstrates</span>
   </div>
   <div class="report-grid">
     {% for key, (title, concept, _) in reports.items() %}
@@ -176,7 +179,7 @@
   <div class="card mt-4" id="report">
     <div class="section-head">
       <h3 class="mb-0">{{ report.title }}</h3>
-      <span class="pill pill-ai">{{ report.concept }}</span>
+      <span class="pill pill-quiet">{{ report.concept }}</span>
     </div>
     {{ data_table(report) }}
   </div>
@@ -185,24 +188,24 @@
 
 {# ---------- Schema browser ---------- #}
 <section class="section" aria-labelledby="schema-title">
-  <div class="section-head"><div><span class="eyebrow">Database structure</span><h2 id="schema-title">Tables, views, triggers and indexes</h2></div></div>
+  <div class="section-head"><h2 id="schema-title">Tables, views, triggers and indexes</h2><span class="sub">Read from <code>sqlite_master</code></span></div>
   <div class="two-col">
     <div class="card">
-      <h3 class="title-icon">{{ icon('table', 18) }}Tables</h3>
+      <h3>Tables</h3>
       {% for o in objects if o.type == 'table' %}
       <details class="schema-obj">
-        <summary>{{ o.name }} <span class="pill">{{ counts[o.name] }} rows</span><span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
+        <summary>{{ o.name }} <span class="pill pill-quiet">{{ counts[o.name] }} rows</span><span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
         <pre class="sql">{{ o.sql }}</pre>
       </details>
       {% endfor %}
     </div>
     <div class="card">
-      <h3 class="title-icon">{{ icon('zap', 18) }}Views, triggers and indexes</h3>
+      <h3>Views, triggers and indexes</h3>
       {% for o in objects if o.type != 'table' %}
       <details class="schema-obj">
         <summary>{{ icon({'view': 'eye', 'trigger': 'zap', 'index': 'key'}[o.type], 15) }}{{ o.name }}
-          <span class="pill {{ 'pill-ai' if o.type == 'trigger' else 'pill-brand' }}">{{ o.type }}</span>
-          {% if o.type != 'view' %}<span class="xs muted">on {{ o.tbl_name }}</span>{% endif %}
+          <span class="pill {{ 'pill-warn' if o.type == 'trigger' else 'pill-quiet' }}">{{ o.type }}</span>
+          {% if o.type != 'view' %}<span class="small muted">on {{ o.tbl_name }}</span>{% endif %}
           <span class="chev">{{ icon('chevron-down', 16) }}</span></summary>
         <pre class="sql">{{ o.sql }}</pre>
       </details>

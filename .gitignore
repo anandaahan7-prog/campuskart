@@ -4,3 +4,8 @@ __pycache__/
 .env
 
 .vercel
+
+# design process artifacts (screenshots, inspector output)
+.impeccable/review/
+.impeccable/questions/
+.taste-skill/

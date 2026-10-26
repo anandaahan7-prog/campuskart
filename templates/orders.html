@@ -1,8 +1,11 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill, stars, icon, empty_state %}
+{% from "_macros.html" import status_pill, stars, icon, empty_state, swatch %}
 {% block title %}Orders{% endblock %}
 {% block content %}
-<h1>Orders</h1>
+<div class="page-head">
+  <h1>Orders</h1>
+  <p>What you bought, what you sold and the offers still being bargained over.</p>
+</div>
 <nav class="tabs" aria-label="Order type">
   <a href="{{ url_for('orders', tab='purchases') }}" {% if tab == 'purchases' %}aria-current="page"{% endif %}>
     {{ icon('bag', 16) }}Purchases <span class="count">{{ purchases|length }}</span></a>
@@ -30,10 +33,10 @@
       <tbody>
       {% for o in purchases %}
       <tr>
-        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}"><span aria-hidden="true">{{ o.category_icon }}</span>{{ o.title }}</a>
+        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}">{{ swatch(o.category_id) }}{{ o.title }}</a>
             <span class="subtext">Order #{{ o.order_id }}</span></td>
         <td>{{ o.seller_name }}
-          {% if o.status == 'placed' %}<a class="subtext" href="tel:{{ o.seller_phone }}">{{ icon('phone', 12) }} {{ o.seller_phone }}</a>{% endif %}</td>
+          {% if o.status == 'placed' %}<br><a class="phone-tab" href="tel:{{ o.seller_phone }}">{{ icon('phone', 12) }}{{ o.seller_phone }}<span class="sr-only"> (call {{ o.seller_name }})</span></a>{% endif %}</td>
         <td class="num">₹{{ o.price|inr }}</td>
         <td>{{ status_pill(o.status) }}</td>
         <td class="muted nowrap">{{ o.ordered_at|ago }}</td>
@@ -41,7 +44,7 @@
           {% if o.status == 'placed' %}
             <div class="row-actions start">
               <form class="inline" method="post" action="{{ url_for('complete_order', oid=o.order_id) }}">
-                <button class="btn btn-good btn-sm">{{ icon('check', 14) }}Mark as received</button></form>
+                <button class="btn btn-sm">{{ icon('check', 14) }}Mark as received</button></form>
               <form class="inline" method="post" action="{{ url_for('cancel_order', oid=o.order_id) }}"
                     data-confirm-title="Cancel this order?"
                     data-confirm="“{{ o.title }}” will go back on sale and {{ o.seller_name }} will be notified."
@@ -85,10 +88,10 @@
       <tbody>
       {% for o in sales %}
       <tr>
-        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}"><span aria-hidden="true">{{ o.category_icon }}</span>{{ o.title }}</a>
+        <td><a class="item-link" href="{{ url_for('product', pid=o.product_id) }}">{{ swatch(o.category_id) }}{{ o.title }}</a>
             <span class="subtext">Order #{{ o.order_id }}</span></td>
         <td>{{ o.buyer_name }}
-          {% if o.status == 'placed' %}<a class="subtext" href="tel:{{ o.buyer_phone }}">{{ icon('phone', 12) }} {{ o.buyer_phone }}</a>{% endif %}</td>
+          {% if o.status == 'placed' %}<br><a class="phone-tab" href="tel:{{ o.buyer_phone }}">{{ icon('phone', 12) }}{{ o.buyer_phone }}<span class="sr-only"> (call {{ o.buyer_name }})</span></a>{% endif %}</td>
         <td class="num">₹{{ o.price|inr }}</td>
         <td>{{ status_pill(o.status) }}</td>
         <td>{% if o.rating %}{{ stars(o.rating) }}{% else %}<span class="muted">Not rated yet</span>{% endif %}</td>

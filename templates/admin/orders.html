@@ -2,7 +2,10 @@
 {% from "_macros.html" import status_pill, stars %}
 {% block title %}All orders{% endblock %}
 {% block content %}
-<h1>All orders</h1>
+<div class="page-head">
+  <h1>All orders</h1>
+  <p>{{ orders|length }} orders. Each one was created inside a transaction that a trigger can roll back.</p>
+</div>
 {% include "admin/_nav.html" %}
 <div class="card card-flush table-wrap">
   <table>

@@ -2,7 +2,10 @@
 {% from "_macros.html" import icon %}
 {% block title %}Manage users{% endblock %}
 {% block content %}
-<h1>Users</h1>
+<div class="page-head">
+  <h1>Users</h1>
+  <p>{{ users|length }} accounts. Blocking a student logs them out; a trigger records it in the audit log.</p>
+</div>
 {% include "admin/_nav.html" %}
 <div class="card card-flush table-wrap">
   <table>
@@ -15,7 +18,7 @@
     <tbody>
     {% for u in users %}
     <tr>
-      <td class="nowrap"><strong>{{ u.name }}</strong> {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}</td>
+      <td class="nowrap"><strong>{{ u.name }}</strong> {% if u.role == 'admin' %}<span class="pill">Admin</span>{% endif %}</td>
       <td class="muted">{{ u.email }}</td>
       <td class="muted">{{ u.branch or '–' }}{% if u.year %} · {{ u.year }}{% endif %}</td>
       <td class="num">{{ u.listings }}</td>

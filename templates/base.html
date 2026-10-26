@@ -1,11 +1,11 @@
-{% from "_macros.html" import icon %}
+{% from "_macros.html" import icon, logo_mark %}
 {% set ep = request.endpoint %}
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#36251a">
   <title>{% block title %}CampusKart{% endblock %} · CampusKart</title>
   <script>
     /* Apply the saved theme before first paint (no flash). Storage can be blocked: fail quietly. */
@@ -21,9 +21,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Inter:wght@400..700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Caveat:wght@500..700&display=swap">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='26' fill='%230f766e'/><text x='50' y='68' font-size='58' text-anchor='middle'>🛒</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%2336251a'/><rect x='7' y='10' width='18' height='16' rx='1.5' fill='%23fffdf8' transform='rotate(-6 16 18)'/><circle cx='16' cy='10.5' r='5' fill='%23cf2e26'/></svg>">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -31,15 +31,15 @@
 <header class="site-header">
   <div class="container header-row">
     <a class="logo" href="{{ url_for('index') }}" aria-label="CampusKart home">
-      <span class="logo-mark">{{ icon('cart', 18) }}</span>
-      <span aria-hidden="true">Campus<span class="accent">Kart</span></span>
+      {{ logo_mark() }}
+      <span aria-hidden="true">CampusKart</span>
     </a>
 
     {% if not g.user or g.user.role != 'admin' %}
     <form class="search-bar" action="{{ url_for('search') }}" role="search">
       <label for="site-search" class="sr-only">Search listings</label>
       {{ icon('search', 18) }}
-      <input id="site-search" name="q" type="search" placeholder="Search books, calculators, cycles…"
+      <input id="site-search" name="q" type="search" placeholder="Search the board: books, calculators, cycles…"
              value="{{ q or '' }}" autocomplete="off" enterkeyhint="search" aria-keyshortcuts="/">
       <kbd aria-hidden="true">/</kbd>
     </form>
@@ -50,7 +50,7 @@
         {% if g.user.role == 'admin' %}
           <a class="nav-link" href="{{ url_for('admin_dashboard') }}" {% if ep and ep.startswith('admin') %}aria-current="page"{% endif %}>{{ icon('shield', 16) }}Admin</a>
         {% else %}
-          <a class="btn btn-sm btn-accent btn-sell" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell</a>
+          <a class="btn btn-sm btn-paper btn-sell" href="{{ url_for('sell') }}" {% if ep == 'sell' %}aria-current="page"{% endif %}>{{ icon('plus', 16) }}Sell an item</a>
           {% for e, label in [('my_listings', 'My listings'), ('orders', 'Orders'), ('wishlist', 'Wishlist')] %}
           <a class="nav-link" href="{{ url_for(e) }}" {% if ep == e %}aria-current="page"{% endif %}>{{ label }}</a>
           {% endfor %}
@@ -97,12 +97,13 @@
         </div>
       {% else %}
         <a class="nav-link keep" href="{{ url_for('login') }}" {% if ep == 'login' %}aria-current="page"{% endif %}>Log in</a>
-        <a class="btn btn-sm" href="{{ url_for('register') }}">Sign up</a>
+        <a class="btn btn-sm btn-paper" href="{{ url_for('register') }}">Sign up</a>
       {% endif %}
     </nav>
   </div>
 </header>
 
+<div class="board">
 {% with messages = get_flashed_messages(with_categories=true) %}
 {% if messages %}
 <div class="toaster" aria-label="Notifications">
@@ -128,10 +129,11 @@
 
 <footer class="site-footer">
   <div class="container">
-    <span class="eco">{{ icon('leaf', 15) }}Every resale keeps a book, calculator or cycle in use for another semester.</span>
+    <span class="note">Every resale keeps a book, a calculator or a cycle in use for another semester.</span>
     <span>CampusKart · DBMS project · Flask · SQLite · scikit-learn</span>
   </div>
 </footer>
+</div>
 
 {% if g.user %}
 <nav class="tabbar" aria-label="Primary">
@@ -222,30 +224,16 @@
     document.addEventListener('visibilitychange', () => document.hidden ? pause() : resume());
   });
 
-  // Shared-element page transition: the clicked card's image becomes the product hero.
-  const clearNames = () => document.querySelectorAll('.thumb').forEach(el => el.style.viewTransitionName = '');
+  // Shared-element page transition: the clicked slip's picture becomes the product slip's picture.
+  const clearNames = () => document.querySelectorAll('.slip-art').forEach(el => el.style.viewTransitionName = '');
   document.addEventListener('click', e => {
-    const card = e.target.closest('.product-card');
-    if (!card || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const slip = e.target.closest('a.slip');
+    if (!slip || e.ctrlKey || e.metaKey || e.shiftKey) return;
     clearNames();
-    document.querySelectorAll('.thumb-lg').forEach(el => el.style.viewTransitionName = 'none');
-    card.querySelector('.thumb').style.viewTransitionName = 'product-hero';
+    document.querySelectorAll('.slip-lg .slip-art').forEach(el => el.style.viewTransitionName = 'none');
+    slip.querySelector('.slip-art').style.viewTransitionName = 'product-hero';
   });
   window.addEventListener('pageshow', e => { if (e.persisted) clearNames(); });
-
-  // Count-up for dashboard numbers (occasional view, explains "this is live data").
-  document.querySelectorAll('[data-count]').forEach(el => {
-    const target = Number(el.dataset.count), prefix = el.dataset.prefix || '';
-    const fmt = n => prefix + Math.round(n).toLocaleString('en-IN');
-    if (reduceMotion || !target) { el.textContent = fmt(target); return; }
-    const t0 = performance.now(), dur = 900, ease = x => 1 - Math.pow(1 - x, 4);
-    const step = now => {
-      const p = Math.min(1, (now - t0) / dur);
-      el.textContent = fmt(target * ease(p));
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  });
 
   // Confirm dialog for important or destructive form submits.
   const dlg = document.getElementById('confirm-dialog');
@@ -259,7 +247,7 @@
     dlg.querySelector('#confirm-text').textContent = f.dataset.confirm;
     const ok = dlg.querySelector('#confirm-ok');
     ok.textContent = f.dataset.confirmOk || 'Confirm';
-    ok.className = 'btn' + (f.dataset.confirmTone === 'danger' ? ' btn-danger' : '');
+    ok.className = 'btn' + (f.dataset.confirmTone === 'danger' ? ' btn-danger' : f.dataset.confirmTone === 'pin' ? ' btn-pin' : '');
     dlg.querySelector('#confirm-cancel').textContent = f.dataset.confirmCancel || 'Cancel';
     dlg.returnValue = '';
     dlg.showModal();

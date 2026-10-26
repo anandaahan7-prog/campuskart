@@ -48,81 +48,87 @@
   'leaf': '<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>',
 } %}
 
-{# 3D category artwork: Microsoft Fluent Emoji (MIT), served by jsDelivr. Emoji is the offline fallback. #}
+{# 3D category artwork: Microsoft Fluent Emoji (MIT), served by jsDelivr. Emoji is the offline fallback.
+   On the board these are the printed picture on each slip. #}
 {% set FLUENT = 'https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/assets/' %}
 {% set CAT_IMG = {1: 'Books/3D/books_3d.png', 2: 'Laptop/3D/laptop_3d.png', 3: 'Abacus/3D/abacus_3d.png',
                   4: 'Triangular%20ruler/3D/triangular_ruler_3d.png', 5: 'Lab%20coat/3D/lab_coat_3d.png',
                   6: 'Bed/3D/bed_3d.png', 7: 'Bicycle/3D/bicycle_3d.png', 8: 'Cricket%20game/3D/cricket_game_3d.png',
                   9: 'T-shirt/3D/t-shirt_3d.png'} %}
-{% set ART = {'cart': 'Shopping%20cart/3D/shopping_cart_3d.png', 'sparkles': 'Sparkles/3D/sparkles_3d.png',
-              'cap': 'Graduation%20cap/3D/graduation_cap_3d.png', 'bags': 'Shopping%20bags/3D/shopping_bags_3d.png',
-              'seedling': 'Seedling/3D/seedling_3d.png', 'money': 'Money%20bag/3D/money_bag_3d.png',
-              'package': 'Package/3D/package_3d.png', 'heart': 'Red%20heart/3D/red_heart_3d.png',
-              'books': 'Books/3D/books_3d.png', 'abacus': 'Abacus/3D/abacus_3d.png', 'bicycle': 'Bicycle/3D/bicycle_3d.png'} %}
+{# Slips are pinned a little crooked, the way people pin them #}
+{% set TILTS = [-0.6, 0.45, -0.3, 0.7, 0.2, -0.5, 0.55, -0.15] %}
 
-{% macro art_url(key) -%}{{ FLUENT ~ ART[key] }}{%- endmacro %}
-
-{# Category picture with emoji fallback (used by cards, tiles and the product page) #}
-{% macro cat_picture(category_id, emoji, cls='thumb-img', size=96, lazy=True) -%}
-<img class="{{ cls }}" src="{{ FLUENT ~ CAT_IMG.get(category_id, 'Package/3D/package_3d.png') }}" alt="" width="{{ size }}" height="{{ size }}"
-     {% if lazy %}loading="lazy" {% endif %}decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="{{ 'thumb-fallback' if cls == 'thumb-img' else 'emoji' }}" aria-hidden="true" hidden>{{ emoji }}</span>
+{# Category picture with emoji fallback (slips, category tabs, the product slip) #}
+{% macro cat_picture(category_id, emoji, size=72, lazy=True) -%}
+<img src="{{ FLUENT ~ CAT_IMG.get(category_id, 'Package/3D/package_3d.png') }}" alt="" width="{{ size }}" height="{{ size }}"
+     {% if lazy %}loading="lazy" {% endif %}decoding="async" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="thumb-fallback emoji" aria-hidden="true" hidden>{{ emoji }}</span>
 {%- endmacro %}
 
 {% macro icon(name, size=18, cls='') -%}
 <svg class="icon {{ cls }}" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{{ ICONS.get(name, '')|safe }}</svg>
 {%- endmacro %}
 
+{# The brand: a paper slip under a red pushpin #}
+{% macro logo_mark() -%}
+<svg class="logo-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><rect x="5" y="8" width="22" height="20" rx="1.5" fill="#fffdf8" transform="rotate(-6 16 18)"/><path d="M10 19h11M10 23h7" stroke="#b9a68a" stroke-width="1.6" stroke-linecap="round" transform="rotate(-6 16 18)"/><circle cx="16" cy="9.5" r="5.5" fill="#cf2e26"/><circle cx="14.2" cy="7.8" r="1.7" fill="#fff" fill-opacity=".45"/></svg>
+{%- endmacro %}
+
+{# The category's paper colour as a small square (tables and lists) #}
+{% macro swatch(category_id) -%}
+<span class="swatch paper-{{ category_id }}" aria-hidden="true"></span>
+{%- endmacro %}
+
 {# ---------------------------------------------------------------------------
-   Product card. The whole card is one link; screen readers get a clean name
-   plus price context ("was ... MRP") instead of a pile of symbols.
+   A listing is a paper slip. The whole slip is one link; screen readers get a
+   clean name plus price context ("MRP ..."), and the tear-off tabs are decoration.
    --------------------------------------------------------------------------- #}
-{% macro product_card(p, reason=None, i=0) %}
+{% macro product_card(p, reason=None, i=0, tabs=True) %}
 {% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
-<a class="product-card reveal" style="--i: {{ [i, 8]|min }}" href="{{ url_for('product', pid=p.product_id) }}">
-  <div class="thumb tint cat-{{ p.category_id }}">
-    <span class="thumb-tag">{{ p.condition }}</span>
-    {% if off >= 5 %}<span class="thumb-off" aria-hidden="true">−{{ off }}%</span>{% endif %}
-    {{ cat_picture(p.category_id, p.category_icon) }}
-  </div>
-  <div class="product-body">
-    <span class="product-title">{{ p.title }}</span>
+<a class="slip paper-{{ p.category_id }}" style="--tilt: {{ TILTS[i % 8] }}deg" href="{{ url_for('product', pid=p.product_id) }}">
+  <span class="slip-body">
+    <span class="slip-top"><span>{{ p.condition }}</span><span>{{ p.category_name }}</span></span>
+    <span class="slip-art">{{ cat_picture(p.category_id, p.category_icon) }}</span>
+    <span class="slip-title">{{ p.title }}</span>
     <span class="price-line">
       <span class="price">₹{{ p.price|inr }}</span>
       <span class="mrp"><span class="sr-only">MRP </span>₹{{ p.original_price|inr }}</span>
-      {% if off >= 5 %}<span class="sr-only">, {{ off }}% off</span>{% endif %}
+      {% if off >= 5 %}<span class="off">{{ off }}% off</span>{% endif %}
     </span>
-    {% if reason %}<span class="ai-reason">{{ icon('sparkles', 14) }}<span>{{ reason }}</span></span>{% endif %}
-    <span class="meta">
-      <span class="seller"><span class="mini-avatar" aria-hidden="true">{{ p.seller_name[0] }}</span><span>{{ p.seller_name }}</span></span>
+    {% if reason %}<span class="note">{{ reason }}</span>{% endif %}
+    <span class="slip-meta">
+      <span class="seller">{{ p.seller_name }}</span>
       {% if p.seller_rating %}<span class="rating">{{ icon('star', 12) }}{{ p.seller_rating }}<span class="sr-only"> seller rating</span></span>{% endif %}
     </span>
-  </div>
+  </span>
+  {% if tabs %}<span class="tearoffs" aria-hidden="true">{% for _ in range(4) %}<span class="tab"><span>{{ p.seller_name.split()[0] }}</span></span>{% endfor %}</span>{% endif %}
 </a>
 {% endmacro %}
 
 {% macro stars(n) -%}
-<span class="stars" aria-hidden="true">{% for i in range(5) %}{{ '★' if i < n|round|int else '☆' }}{% endfor %}</span><span class="sr-only">Rated {{ n|round(1) }} out of 5</span>
+<span class="stars" aria-hidden="true">{% for i in range(5) %}{{ icon('star', 13, '' if i < n|round|int else 'off') }}{% endfor %}</span><span class="sr-only">Rated {{ n|round(1) }} out of 5</span>
 {%- endmacro %}
 
+{# States are rubber stamps. One ink per meaning: green done, amber waiting, brick refused, ink neutral. #}
 {% macro status_pill(s) %}
 {% set css = {'available': 'good', 'placed': 'brand', 'completed': 'good', 'sold': 'brand',
               'pending': 'warn', 'cancelled': 'bad', 'rejected': 'bad', 'removed': 'bad',
-              'countered': 'brand', 'accepted': 'good', 'withdrawn': '', 'expired': ''} %}
+              'countered': 'warn', 'accepted': 'good', 'withdrawn': 'quiet', 'expired': 'quiet'} %}
 {% set label = {'placed': 'Awaiting pickup', 'pending': 'Pending', 'available': 'Live',
                 'countered': 'Countered', 'rejected': 'Declined', 'withdrawn': 'Withdrawn'} %}
-<span class="pill pill-{{ css.get(s, '') }}">{{ label.get(s, s|capitalize) }}</span>
+<span class="pill pill-{{ css.get(s, 'quiet') }}">{{ label.get(s, s|capitalize) }}</span>
 {% endmacro %}
 
 {# Empty state: what this is + why it's empty + how to start #}
 {% macro empty_state(icon_name, title, text, cta_label=None, cta_url=None, card=True) %}
 <div class="{{ 'card ' if card }}empty">
-  <div class="empty-icon">{{ icon(icon_name, 24) }}</div>
+  <div class="empty-icon">{{ icon(icon_name, 28) }}</div>
   <h2>{{ title }}</h2>
   <p>{{ text }}</p>
   {% if cta_label %}<a class="btn" href="{{ cta_url }}">{{ cta_label }}</a>{% endif %}
 </div>
 {% endmacro %}
 
+{# The AI's mark: "AI" circled in ballpoint, or a short label in the same pen #}
 {% macro ai_badge(text='AI') -%}
-<span class="ai-badge">{{ icon('sparkles', 12) }}{{ text }}</span>
+<span class="ai-badge{{ ' ai-badge-text' if text != 'AI' }}">{{ text }}</span>
 {%- endmacro %}

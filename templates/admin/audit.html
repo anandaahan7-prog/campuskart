@@ -28,7 +28,7 @@
 </nav>
 
 {% if rows %}
-<ol class="audit-list">
+<ol class="audit-list card">
   {% for a in rows %}
   <li class="audit-item">
     <span class="audit-dot {{ 'is-insert' if a.action == 'INSERT' else '' }}" aria-hidden="true">{{ icon('plus' if a.action == 'INSERT' else 'edit', 13) }}</span>
@@ -57,7 +57,7 @@
 {% endif %}
 
 <details class="card sql-peek mt-6">
-  <summary>{{ icon('zap', 14) }}The {{ triggers|length }} audit triggers</summary>
+  <summary class="mt-0">{{ icon('zap', 14) }}The {{ triggers|length }} audit triggers</summary>
   <ul class="trigger-list">
     {% for t in triggers %}<li><code>{{ t.name }}</code> <span class="xs muted">on {{ t.tbl_name }}</span></li>{% endfor %}
   </ul>

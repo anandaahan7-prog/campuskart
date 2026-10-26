@@ -4,7 +4,7 @@
 {% block content %}
 <div class="page-head">
   <h1>{{ 'Edit your listing' if item else 'Sell an item' }}</h1>
-  <p>Describe your item and set a price. We'll suggest a fair price and check the listing before it goes live.</p>
+  <p>Describe it and set a price. The AI suggests a fair price and checks the slip for spam before it goes on the board.</p>
 </div>
 
 <div class="two-col">
@@ -51,7 +51,7 @@
 
     <div class="ai-box">
       <div class="between">
-        <span class="cluster">{{ ai_badge() }}<strong>Fair price suggestion</strong></span>
+        <span class="cluster">{{ ai_badge() }}<strong>Fair-price suggestion</strong></span>
         <button type="button" class="btn btn-ai btn-sm" id="suggestBtn">{{ icon('sparkles', 14) }}<span>Suggest a price</span></button>
       </div>
       <div class="result" id="priceResult" aria-live="polite">
@@ -66,7 +66,7 @@
     </div>
 
     <div id="spamResult" class="mb-4" aria-live="polite"></div>
-    <button class="btn btn-lg btn-block" type="submit">{{ 'Save changes' if item else 'Publish listing' }}</button>
+    <button class="btn btn-lg btn-block btn-pin" type="submit">{{ 'Save changes' if item else 'Pin it to the board' }}</button>
   </form>
 
   <aside class="card" aria-labelledby="how-title">
@@ -82,7 +82,7 @@
       <dd>Once live, your item is recommended to students who searched for similar things.</dd>
     </dl>
     <hr>
-    <p class="small muted title-icon mb-0">{{ icon('info', 16) }}Try typing “whatsapp me” in the title to see the spam check react.</p>
+    <p class="note mb-0">try typing “whatsapp me” in the title and watch the spam check react</p>
   </aside>
 </div>
 {% endblock %}

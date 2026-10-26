@@ -9,7 +9,7 @@
       <div class="grow">
         <h1 id="profile-title" class="mb-0">{{ g.user.name }}</h1>
         <span class="muted">{{ g.user.email }}</span>
-        {% if g.user.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% endif %}
+        {% if g.user.role == 'admin' %}<span class="pill">Admin</span>{% endif %}
       </div>
     </div>
     {% if g.user.role == 'user' %}
@@ -56,7 +56,7 @@
   {% if g.user.role == 'user' %}
   <section class="card" aria-labelledby="history-title">
     <div class="section-head">
-      <h2 id="history-title" class="title-icon">{{ icon('clock', 18) }}Search history</h2>
+      <h2 id="history-title">Search history</h2>
       {% if searches %}
       <form method="post" action="{{ url_for('clear_search_history') }}"
             data-confirm-title="Clear your search history?"
@@ -66,7 +66,7 @@
       </form>
       {% endif %}
     </div>
-    <p class="small muted">Recommendations are based on this list. You're in control: clear it any time.</p>
+    <p class="small muted">Your picks on the home board come from this list. Clear it any time and they start fresh.</p>
     {% if searches %}
     <ul class="history-list">
       {% for s in searches %}

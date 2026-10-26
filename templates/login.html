@@ -2,8 +2,8 @@
 {% from "_macros.html" import icon %}
 {% block title %}Log in{% endblock %}
 {% block content %}
-<div class="auth-wrap">
-  <section class="card" aria-labelledby="login-title">
+<div class="card auth-wrap">
+  <section aria-labelledby="login-title">
     <h1 id="login-title">Log in</h1>
     <p class="muted">Welcome back. Use your college email.</p>
     <form method="post" class="mt-4">
@@ -17,29 +17,30 @@
       </div>
       <button class="btn btn-block btn-lg">Log in</button>
     </form>
-    <p class="small muted mt-4 mb-0">New to CampusKart? <a href="{{ url_for('register') }}">Create an account</a></p>
+    <p class="small muted mt-6 mb-0 auth-foot">New to CampusKart? <a href="{{ url_for('register') }}">Create an account</a></p>
   </section>
 
-  <section class="card" aria-labelledby="demo-title">
-    <h2 id="demo-title" class="title-icon">{{ icon('grad', 20) }}Demo accounts</h2>
-    <p class="muted small">Choose an account to log in instantly. Each student has a different search
-      history, so each sees different recommendations.</p>
+  <section aria-labelledby="demo-title">
+    <h2 id="demo-title">Demo accounts</h2>
+    <p class="muted small">Pick a slip to log in instantly. Each student has a different search
+      history, so each one's board is pinned differently.</p>
     {% set notes = {
-      'admin@campuskart.com': 'Dashboard, flagged listings, users, SQL explorer',
+      'admin@campuskart.com': 'Dashboard, flagged listings, audit log, data lookup',
       'rahul@college.edu': 'Searched dbms book, python, laptop',
-      'priya@college.edu': 'Searched engineering drawing, drafter, calculator',
+      'priya@college.edu': 'Has a counter-offer to answer on Grewal maths',
       'karan@college.edu': 'Searched arduino, multimeter, raspberry pi',
-      'aisha@college.edu': 'Searched cycle, mattress, kettle',
+      'aisha@college.edu': 'A mattress on her wishlist just dropped in price',
       'neha@college.edu': 'New user with no history (sees trending items)'} %}
     <div class="demo-list">
       {% for u in demo_users %}
-      <button type="button" class="demo-user"
+      {% set paper = {'admin': 3}.get(u.role, [1, 2, 4, 5, 6, 7][loop.index0 % 6]) %}
+      <button type="button" class="demo-user paper-{{ paper }}"
               data-email="{{ u.email }}" data-pw="{{ 'admin123' if u.role == 'admin' else 'demo123' }}">
         <span class="avatar" aria-hidden="true">{{ u.name[0] }}</span>
         <span class="grow">
           <strong>{{ u.name }}</strong>
-          {% if u.role == 'admin' %}<span class="pill pill-bad">Admin</span>{% else %}<span class="pill pill-brand">{{ u.branch }}</span>{% endif %}
-          <span class="note">{{ notes.get(u.email, '') }}</span>
+          {% if u.role == 'admin' %}<span class="pill">Admin</span>{% else %}<span class="pill pill-quiet">{{ u.branch }}</span>{% endif %}
+          <span class="note-line">{{ notes.get(u.email, '') }}</span>
         </span>
         <span class="go">{{ icon('chevron-right', 18) }}</span>
         <span class="sr-only">Log in as {{ u.name }}</span>

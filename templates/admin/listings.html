@@ -1,14 +1,17 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill, icon, ai_badge %}
+{% from "_macros.html" import status_pill, icon, ai_badge, swatch %}
 {% block title %}Manage listings{% endblock %}
 {% block content %}
-<h1>Listings</h1>
+<div class="page-head">
+  <h1>Listings</h1>
+  <p>{{ pending|length }} held back by the spam detector, and every slip on the board by status.</p>
+</div>
 {% include "admin/_nav.html" %}
 
 <section class="card" aria-labelledby="flagged-title">
   <div class="section-head">
-    <h2 id="flagged-title" class="title-icon">{{ icon('alert', 18) }}Flagged by AI <span class="pill pill-warn">{{ pending|length }}</span></h2>
-    {{ ai_badge('Naive Bayes spam detector') }}
+    <h2 id="flagged-title" class="title-icon">Flagged by AI <span class="pill pill-warn">{{ pending|length }}</span></h2>
+    <span class="note">checked by a Naive Bayes spam detector plus rules</span>
   </div>
   {% if pending %}
   <div class="table-wrap">
@@ -16,7 +19,7 @@
       <caption class="sr-only">Listings waiting for review</caption>
       <thead>
         <tr><th scope="col">Listing</th><th scope="col">Seller</th><th scope="col" class="num">Price / MRP</th>
-            <th scope="col">Spam score</th><th scope="col">Why it was flagged</th><th scope="col"><span class="sr-only">Decision</span></th></tr>
+            <th scope="col" class="num">Spam score</th><th scope="col">Why it was flagged</th><th scope="col"><span class="sr-only">Decision</span></th></tr>
       </thead>
       <tbody>
       {% for p in pending %}
@@ -25,16 +28,16 @@
             <span class="subtext">{{ p.description|truncate(90) }}</span></td>
         <td>{{ p.seller_name }}</td>
         <td class="num nowrap">₹{{ p.price|inr }} / ₹{{ p.original_price|inr }}</td>
-        <td><span class="pill pill-bad">{{ (p.spam_score * 100)|round|int }}%</span></td>
-        <td class="xs">{% for r in (p.flag_reason or '').split('; ') if r %}<span class="subtext">• {{ r }}</span>{% endfor %}</td>
+        <td class="num"><span class="pill pill-bad">{{ (p.spam_score * 100)|round|int }}%</span></td>
+        <td>{% for r in (p.flag_reason or '').split('; ') if r %}<span class="subtext">{{ r }}</span>{% endfor %}</td>
         <td>
           <div class="row-actions">
             <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='approve') }}">
-              <button class="btn btn-good btn-sm">{{ icon('check', 14) }}Approve<span class="sr-only"> {{ p.title }}</span></button></form>
+              <button class="btn btn-sm">{{ icon('check', 14) }}Approve<span class="sr-only"> {{ p.title }}</span></button></form>
             <form class="inline" method="post" action="{{ url_for('admin_listing_action', pid=p.product_id, action='reject') }}"
                   data-confirm-title="Reject this listing?" data-confirm="“{{ p.title }}” won't go live. {{ p.seller_name }} will be notified."
                   data-confirm-ok="Reject listing" data-confirm-cancel="Go back" data-confirm-tone="danger">
-              <button class="btn btn-danger btn-sm">{{ icon('x', 14) }}Reject<span class="sr-only"> {{ p.title }}</span></button></form>
+              <button class="btn btn-danger-outline btn-sm">{{ icon('x', 14) }}Reject<span class="sr-only"> {{ p.title }}</span></button></form>
           </div>
         </td>
       </tr>
@@ -43,7 +46,7 @@
     </table>
   </div>
   {% else %}
-  <p class="muted mb-0 title-icon">{{ icon('check-circle', 18) }}Nothing to review. New flagged listings will appear here.</p>
+  <p class="muted mb-0">Nothing to review. New flagged listings will appear here.</p>
   {% endif %}
 </section>
 
@@ -65,7 +68,7 @@
       <tr>
         <td class="num muted">{{ p.product_id }}</td>
         <td><a class="item-link" href="{{ url_for('product', pid=p.product_id) }}">{{ p.title }}</a></td>
-        <td><span aria-hidden="true">{{ p.category_icon }}</span> {{ p.category_name }}</td>
+        <td><span class="title-icon">{{ swatch(p.category_id) }}{{ p.category_name }}</span></td>
         <td>{{ p.seller_name }}</td>
         <td class="num">₹{{ p.price|inr }}</td>
         <td>{{ status_pill(p.status) }}</td>

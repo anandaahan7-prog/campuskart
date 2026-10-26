@@ -36,7 +36,7 @@ def main():
     check(c.get("/sell", follow_redirects=True), "Log in to continue")
 
     # Rahul: personalised recommendations
-    check(login(c, "rahul@college.edu"), "Recommended for you", "Because you searched")
+    check(login(c, "rahul@college.edu"), "Pinned for you, Rahul", "Because you searched", "Open offers")
     check(c.get("/search?q=arduno"), "Did you mean")       # typo -> AI fallback
     check(c.get("/product/1"), "Similar items", "Our price model estimates")
     check(c.get("/orders"), "Head First Java")
@@ -63,8 +63,8 @@ def main():
     check(c.post("/sell", data=spam, follow_redirects=True), "flagged")
 
     # Buy an item (trigger marks it sold), buying again must fail (trigger aborts)
-    check(c.post("/buy/2", follow_redirects=True), "Order placed")
-    check(login(c, "priya@college.edu"), "Recommended for you")
+    check(c.post("/buy/2", follow_redirects=True), "Order placed", "Your tab: call", "tear-now")   # lands on the slip
+    check(login(c, "priya@college.edu"), "Pinned for you, Priya", "Reply to the counter")         # the one finding
     check(c.post("/buy/2", follow_redirects=True), "no longer available")
 
     # Rahul completes and reviews the order
@@ -76,6 +76,7 @@ def main():
           "Thanks for your review")
 
     # Neha: new user -> cold start
+    check(login(c, "aisha@college.edu"), "Price drop", "on your wishlist dropped to")
     check(login(c, "neha@college.edu"), "Trending on campus")
 
     # ---- New features -------------------------------------------------------
@@ -94,11 +95,11 @@ def main():
                             (lamp,)).fetchone()[0]
 
     # Seller (Vikram) counters, Neha accepts the counter -> order created at the counter price
-    check(login(c, "vikram@college.edu"), "Hi Vikram")
+    check(login(c, "vikram@college.edu"), "Pinned for you, Vikram", "Review offers")
     check(c.get("/orders?tab=offers"), "Offers on your items", "Neha Gupta", "Rahul Sharma")
     check(c.post(f"/offers/{neha_offer}/counter", data={"counter_amount": 10}, follow_redirects=True), "Counter with an amount")
     check(c.post(f"/offers/{neha_offer}/counter", data={"counter_amount": 440}, follow_redirects=True), "Counter-offer sent")
-    check(login(c, "neha@college.edu"), "Hi Neha")
+    check(login(c, "neha@college.edu"), "Pinned for you, Neha")
     check(c.get(f"/product/{lamp}"), "countered at ₹440")
     check(c.post(f"/offers/{neha_offer}/accept_counter", follow_redirects=True), "Deal done at ₹440")
     order = db.execute("SELECT price, status FROM orders WHERE product_id = ? ORDER BY order_id DESC", (lamp,)).fetchone()
@@ -117,7 +118,7 @@ def main():
     form = {"title": "Dell Inspiron 15 Laptop - i5, 8GB RAM, 512GB SSD", "description": "Dell laptop, charger included.",
             "category_id": 2, "condition": "Good", "original_price": 52000, "age_months": 30, "price": 24000}
     check(c.post(f"/listing/{laptop}/edit", data=form, follow_redirects=True), "Listing updated")
-    check(login(c, "rahul@college.edu"), "Recommended for you")
+    check(login(c, "rahul@college.edu"), "Pinned for you, Rahul", "dropped to ₹24,000")
     check(c.get("/notifications"), "Price drop", "now Rs. 24000")
     check(c.get(f"/product/{laptop}"), "Price dropped from")
     who = db.execute("""SELECT u.name FROM audit_log a JOIN users u ON u.user_id = a.changed_by

@@ -4,17 +4,17 @@
 {% block content %}
 <div class="page-head">
   <h1>Wishlist</h1>
-  <p>We'll notify you if any of these items sells, so you're never caught off guard.</p>
+  <p>We'll tell you if one of these sells or its price drops: a database trigger writes the alert.</p>
 </div>
 {% if items %}
 <div class="grid">
   {% for p in items %}
   <div>
     {{ product_card(p, None, loop.index0) }}
-    <div class="between mt-2">
+    <div class="between mt-3">
       {{ status_pill(p.status) }}
       <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
-        <button class="btn btn-ghost btn-sm">{{ icon('x', 14) }}Remove<span class="sr-only"> {{ p.title }} from wishlist</span></button>
+        <button class="btn btn-ghost btn-sm board-ghost">{{ icon('x', 14) }}Remove<span class="sr-only"> {{ p.title }} from wishlist</span></button>
       </form>
     </div>
   </div>

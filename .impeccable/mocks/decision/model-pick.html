@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CampusKart · notice board direction</title>
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Courier+Prime:wght@400;700&family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0}body{width:1440px;height:900px;overflow:hidden;background:#e7d3b3;font:15px/1.45 Archivo,sans-serif;color:#1f1b16}
+header{height:68px;background:#7a4e2d;display:flex;align-items:center;gap:28px;padding:0 40px;color:#fff6e6;border-bottom:4px solid #5e3a20}
+.logo{font-family:'Permanent Marker';font-size:28px}.search{flex:1;max-width:560px;height:42px;background:#fffdf5;color:#7a6a55;border-radius:4px;padding:0 16px;display:flex;align-items:center}
+nav{margin-left:auto;display:flex;gap:22px;font-weight:600}.sell{background:#d92d20;color:#fff;padding:9px 16px;border-radius:4px;font-weight:800}
+main{padding:30px 40px;display:grid;grid-template-columns:1fr 360px;gap:32px}
+h1{font-family:'Permanent Marker';font-size:44px;font-weight:400;margin-bottom:6px}.sub{font-family:'Courier Prime';margin-bottom:18px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+.slip{background:#fffdf5;box-shadow:0 2px 0 #d8c7a9,0 10px 18px -8px rgba(60,35,10,.35);position:relative;padding:22px 16px 0}
+.slip:before{content:"";position:absolute;top:8px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#d92d20;box-shadow:0 2px 0 #8f1a12}
+.slip.y{background:#fff3b0}.slip.p{background:#ffe1ea}
+.em{font-size:52px;text-align:center}.t{font-family:'Permanent Marker';font-size:19px;line-height:1.15;margin:8px 0;height:44px}
+.d{font-family:'Courier Prime';font-size:13px;color:#4f463a}.why{font-family:'Courier Prime';font-size:12px;color:#2f6fd6;margin-top:6px}
+.tear{display:grid;grid-template-columns:repeat(4,1fr);margin:14px -16px 0;border-top:2px dashed #b8a98e}
+.tear span{writing-mode:vertical-rl;transform:rotate(180deg);font-family:'Courier Prime';font-weight:700;font-size:13px;height:66px;border-right:1px dashed #b8a98e;display:grid;place-items:center}
+aside .card{background:#fffdf5;padding:22px;box-shadow:0 10px 18px -8px rgba(60,35,10,.35)}
+aside h2{font-family:'Permanent Marker';font-size:24px;font-weight:400;margin-bottom:10px}
+.row{display:flex;justify-content:space-between;font-family:'Courier Prime';padding:10px 0;border-bottom:1px dashed #c9b994}
+.stamp{display:inline-block;margin-top:14px;border:3px solid #d92d20;color:#d92d20;font-weight:800;padding:4px 10px;transform:rotate(-4deg);letter-spacing:.08em}
+</style></head><body>
+<header><div class="logo">CampusKart</div><div class="search">Search the board: books, calculators, cycles…</div>
+<nav><span>My slips</span><span>Orders</span><span>Offers</span><span>Saved</span><span class="sell">+ Pin a listing</span></nav></header>
+<main><section><h1>Pinned for you, Rahul</h1><div class="sub">Picked by the AI from your last 6 searches</div>
+<div class="grid">
+<div class="slip"><div class="em">💻</div><div class="t">Mechanical Keyboard (RGB)</div><div class="d">Like new · Vikram, CSE Y4</div><div class="why">✦ you searched "mechanical keyboard"</div><div class="tear"><span>₹1,250</span><span>₹1,250</span><span>₹1,250</span><span>₹1,250</span></div></div>
+<div class="slip y"><div class="em">📚</div><div class="t">Let Us Python – Kanetkar</div><div class="d">Like new · Meera, IT Y3</div><div class="why">✦ you searched "python"</div><div class="tear"><span>₹290</span><span>₹290</span><span>₹290</span><span>₹290</span></div></div>
+<div class="slip"><div class="em">📚</div><div class="t">OS Concepts – Galvin</div><div class="d">Good · Vikram, CSE Y4</div><div class="why">✦ you searched "operating system"</div><div class="tear"><span>₹420</span><span>₹420</span><span>₹420</span><span>₹420</span></div></div>
+<div class="slip p"><div class="em">📘</div><div class="t">DBMS notes + PYQs</div><div class="d">Good · Meera, IT Y3</div><div class="why">✦ you searched "dbms book"</div><div class="tear"><span>₹150</span><span>₹150</span><span>₹150</span><span>₹150</span></div></div>
+</div></section>
+<aside><div class="card"><h2>Your board activity</h2>
+<div class="row"><span>Offer on Korth</span><b>₹380 · waiting</b></div><div class="row"><span>Laptop price drop</span><b>₹26,000</b></div><div class="row"><span>Head First Java</span><b>done</b></div>
+<span class="stamp">SOLD · TRIGGER FIRED</span></div></aside></main>
+</body></html>

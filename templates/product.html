@@ -3,6 +3,7 @@
 {% block title %}{{ p.title }}{% endblock %}
 {% block content %}
 {% set off = ((1 - p.price / p.original_price) * 100)|round|int %}
+{% set seller_first = p.seller_name.split()[0] %}
 <nav class="breadcrumb" aria-label="Breadcrumb">
   <a href="{{ url_for('index') }}">Home</a>{{ icon('chevron-right', 14) }}
   <a href="{{ url_for('search', category=p.category_id) }}">{{ p.category_name }}</a>{{ icon('chevron-right', 14) }}
@@ -10,48 +11,148 @@
 </nav>
 
 <div class="product-page">
-  <div class="product-media">
-    <div class="thumb thumb-lg tint cat-{{ p.category_id }}">
-      <span class="thumb-tag">{{ p.condition }}</span>
-      {% if off >= 5 %}<span class="thumb-off" aria-hidden="true">−{{ off }}%</span>{% endif %}
-      {{ cat_picture(p.category_id, p.category_icon, 'thumb-img', 220, False) }}
+  {# ---------------- The slip itself ---------------- #}
+  <div>
+    <article class="slip slip-lg paper-{{ p.category_id }}" aria-labelledby="product-title">
+      <div class="slip-body">
+        {% if p.status == 'sold' %}<span class="stamp stamp-big" aria-hidden="true">Sold</span>{% endif %}
+        <div class="slip-top"><span>{{ p.condition }}</span><span>{{ p.category_name }}</span></div>
+        <div class="slip-art">{{ cat_picture(p.category_id, p.category_icon, 176, False) }}</div>
+        {% if p.status not in ['available', 'sold'] %}<p class="mt-3 mb-0">{{ status_pill(p.status) }}</p>{% endif %}
+        <h1 id="product-title">{{ p.title }}</h1>
+        <div class="price-block">
+          <span class="big-price">₹{{ p.price|inr }}</span>
+          <span class="mrp">MRP ₹{{ p.original_price|inr }}</span>
+          {% if off > 0 %}<span class="off">{{ off }}% off</span>{% endif %}
+        </div>
+        {% if price_drop %}
+        <p class="price-drop">{{ icon('tag', 15) }}Price dropped from <s>₹{{ price_drop.was|inr }}</s> {{ price_drop.at|ago }}</p>
+        {% endif %}
+        <p class="desc">{{ p.description }}</p>
+        <dl class="spec">
+          <dt>Condition</dt><dd>{{ p.condition }}</dd>
+          <dt>Age</dt><dd>{{ p.age_months }} month{{ '' if p.age_months == 1 else 's' }}</dd>
+          <dt>Pinned by</dt><dd>{{ p.seller_name }}{% if p.seller_branch %}, {{ p.seller_branch }}{% if p.seller_year %} year {{ p.seller_year }}{% endif %}{% endif %}</dd>
+        </dl>
+      </div>
+      {# Tear-off tabs: the contact comes with the order, the way it does on a real board #}
+      <div class="tearoffs{{ ' is-torn' if my_order }}{{ ' tear-now' if my_order and torn }}" aria-hidden="true">
+        {% for _ in range(6) %}<span class="tab"><span>{{ seller_first }} · ₹{{ (my_order.price if my_order else p.price)|inr }}</span></span>{% endfor %}
+      </div>
+    </article>
+
+    {% if my_order %}
+    <div class="tab-in-hand paper-{{ p.category_id }}{{ ' tear-now' if torn }}">
+      {{ icon('phone', 20) }}
+      <div class="grow">
+        <span class="small muted">{{ 'Your tab: call ' ~ seller_first ~ ' to arrange a campus pickup' if my_order.status == 'placed' else 'You bought this from ' ~ seller_first }}</span>
+        <strong><a href="tel:{{ my_order.seller_phone }}">{{ my_order.seller_phone }}</a></strong>
+      </div>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('orders') }}">Your orders</a>
     </div>
+    {% endif %}
+
     <p class="product-meta-line">
       <span>{{ icon('eye', 14) }}{{ views }} views</span>
-      <span>{{ icon('clock', 14) }}Listed {{ p.created_at|ago }}</span>
+      <span>{{ icon('clock', 14) }}Pinned {{ p.created_at|ago }}</span>
     </p>
   </div>
 
-  <section class="card product-info" aria-labelledby="product-title">
-    {% if p.status != 'available' %}<p>{{ status_pill(p.status) }}</p>{% endif %}
-    <h1 id="product-title">{{ p.title }}</h1>
-    <div class="price-block">
-      <span class="big-price">₹{{ p.price|inr }}</span>
-      <span class="mrp">MRP ₹{{ p.original_price|inr }}</span>
-      {% if off > 0 %}<span class="save-text">Save {{ off }}%</span>{% endif %}
-    </div>
-    {% if price_drop %}
-    <p class="price-drop">{{ icon('tag', 15) }}Price dropped from <s>₹{{ price_drop.was|inr }}</s> {{ price_drop.at|ago }}</p>
-    {% endif %}
-
+  {# ---------------- The deal ---------------- #}
+  <div class="deal">
     {% if verdict %}
-    {% set tone = {'good': 'good', 'fair': 'info', 'bad': 'bad'}[verdict.css] %}
-    <div class="callout callout-{{ tone }}">
-      {{ ai_badge() }}
-      <p><strong>{{ verdict.label }}.</strong> Our price model estimates this item at about
-        <strong>₹{{ verdict.estimate|inr }}</strong>, so this price is
+    <section class="card verdict" aria-labelledby="verdict-title">
+      <div class="verdict-head">{{ ai_badge() }}<h2 id="verdict-title">Fair-price check</h2></div>
+      <span class="note">{{ verdict.label }}</span>
+      <p>Our price model estimates this item at about <strong>₹{{ verdict.estimate|inr }}</strong>, so this price is
         {% if verdict.diff > 0 %}{{ verdict.diff }}% above{% elif verdict.diff < 0 %}{{ -verdict.diff }}% below{% else %}right at{% endif %} the estimate.</p>
-    </div>
+    </section>
     {% endif %}
 
-    <p class="mt-4">{{ p.description }}</p>
-    <dl class="spec">
-      <dt>Condition</dt><dd>{{ p.condition }}</dd>
-      <dt>Age</dt><dd>{{ p.age_months }} month{{ '' if p.age_months == 1 else 's' }}</dd>
-      <dt>Category</dt><dd>{{ p.category_name }}</dd>
-    </dl>
+    <section class="card" aria-label="Buy or bargain">
+      <div class="actions">
+        {% if not g.user %}
+          <a class="btn btn-lg btn-pin" href="{{ url_for('login', next=request.path) }}">Log in to buy</a>
+        {% elif is_owner %}
+          {% if open_offers %}
+          <a class="btn btn-lg btn-pin" href="{{ url_for('orders', tab='offers') }}">{{ icon('inbox', 16) }}{{ open_offers }} offer{{ '' if open_offers == 1 else 's' }} waiting</a>
+          {% endif %}
+          {% if p.status in ['available', 'pending'] %}
+          <a class="btn btn-lg btn-outline" href="{{ url_for('edit_listing', pid=p.product_id) }}">{{ icon('edit', 16) }}Edit listing</a>
+          {% endif %}
+        {% elif g.user.role == 'user' and p.status == 'available' %}
+          <form method="post" action="{{ url_for('buy', pid=p.product_id) }}"
+                data-confirm-title="Buy this item for ₹{{ p.price|inr }}?"
+                data-confirm="{{ p.seller_name }} will be notified, and you'll get their phone number to arrange a campus pickup."
+                data-confirm-ok="Buy for ₹{{ p.price|inr }}" data-confirm-cancel="Keep browsing" data-confirm-tone="pin">
+            <button class="btn btn-lg btn-pin">{{ icon('bag', 18) }}Buy for ₹{{ p.price|inr }}</button>
+          </form>
+          <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
+            <button class="btn btn-lg btn-outline" aria-pressed="{{ 'true' if in_wishlist else 'false' }}">
+              {{ icon('heart', 18) }}{{ 'Saved' if in_wishlist else 'Save' }}
+            </button>
+          </form>
+        {% elif my_order %}
+          <p class="mb-0">{{ status_pill(my_order.status) }} <span class="muted">You ordered this for ₹{{ my_order.price|inr }}.</span></p>
+        {% else %}
+          <p class="mb-0 muted">This item is no longer on the board.</p>
+        {% endif %}
+      </div>
 
-    <div class="card card-quiet">
+      {# ---------------- Offers (bargaining) ---------------- #}
+      {% if my_offer %}
+        {% if my_offer.status == 'pending' %}
+        <div class="offer-status callout callout-info mt-4" role="status">
+          {{ icon('clock', 18) }}
+          <p><strong>Your offer of ₹{{ my_offer.amount|inr }} is with {{ seller_first }}.</strong>
+             You'll get a notification when they reply.</p>
+          <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button class="btn btn-ghost btn-sm">Withdraw</button>
+          </form>
+        </div>
+        {% else %}
+        <div class="offer-status callout callout-warn mt-4" role="status">
+          {{ icon('receipt', 18) }}
+          <p><strong>{{ seller_first }} countered at ₹{{ my_offer.counter_amount|inr }}</strong>
+             (you offered ₹{{ my_offer.amount|inr }}).</p>
+          <div class="cluster">
+            <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='accept_counter') }}"
+                  data-confirm-title="Buy for ₹{{ my_offer.counter_amount|inr }}?"
+                  data-confirm="This places the order at the counter price. {{ p.seller_name }} will be notified."
+                  data-confirm-ok="Buy for ₹{{ my_offer.counter_amount|inr }}" data-confirm-cancel="Not yet" data-confirm-tone="pin">
+              <button class="btn btn-sm">Accept ₹{{ my_offer.counter_amount|inr }}</button>
+            </form>
+            <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
+              <input type="hidden" name="next" value="{{ request.path }}">
+              <button class="btn btn-ghost btn-sm">Decline</button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+      {% elif suggested_offer %}
+      <details class="offer-box mt-4">
+        <summary>{{ icon('receipt', 16) }}Make an offer<span class="hint-inline">Bargain politely, like you would in person</span>{{ icon('chevron-down', 16, 'chev') }}</summary>
+        <form method="post" action="{{ url_for('make_offer', pid=p.product_id) }}" class="offer-form">
+          <div class="field">
+            <label for="offer-amount">Your offer (₹)</label>
+            <input id="offer-amount" name="amount" type="number" inputmode="numeric" min="1" max="{{ (p.price - 1)|int }}"
+                   step="1" value="{{ suggested_offer }}" required aria-describedby="offer-hint">
+            <span class="hint" id="offer-hint">
+              {{ ai_badge() }} Suggested ₹{{ suggested_offer|inr }}{% if verdict %}, close to our fair-price estimate of ₹{{ verdict.estimate|inr }}{% endif %}. Must be below ₹{{ p.price|inr }}.
+            </span>
+          </div>
+          <div class="field">
+            <label for="offer-msg">Message (optional)</label>
+            <input id="offer-msg" name="message" maxlength="140" placeholder="e.g. I can pick it up today near the library">
+          </div>
+          <button class="btn">Send offer</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+
+    <section class="card" aria-label="Seller">
       <div class="seller-box">
         <span class="avatar" aria-hidden="true">{{ p.seller_name[0] }}</span>
         <div class="grow">
@@ -64,113 +165,28 @@
           {% else %}<span class="subtext">No reviews yet</span>{% endif %}
         </div>
       </div>
-    </div>
-
-    <div class="actions">
-      {% if not g.user %}
-        <a class="btn btn-lg" href="{{ url_for('login', next=request.path) }}">Log in to buy</a>
-      {% elif is_owner %}
-        {% if p.status in ['available', 'pending'] %}
-        <a class="btn btn-lg btn-outline" href="{{ url_for('edit_listing', pid=p.product_id) }}">{{ icon('edit', 16) }}Edit listing</a>
-        {% endif %}
-        {% if open_offers %}
-        <a class="btn btn-lg btn-accent" href="{{ url_for('orders', tab='offers') }}">{{ icon('inbox', 16) }}{{ open_offers }} offer{{ '' if open_offers == 1 else 's' }} waiting</a>
-        {% endif %}
-      {% elif g.user.role == 'user' and p.status == 'available' %}
-        <form method="post" action="{{ url_for('buy', pid=p.product_id) }}"
-              data-confirm-title="Buy this item for ₹{{ p.price|inr }}?"
-              data-confirm="{{ p.seller_name }} will be notified, and you'll see their phone number to arrange a campus pickup."
-              data-confirm-ok="Buy for ₹{{ p.price|inr }}" data-confirm-cancel="Keep browsing">
-          <button class="btn btn-lg">{{ icon('bag', 18) }}Buy now</button>
-        </form>
-        <form method="post" action="{{ url_for('toggle_wishlist', pid=p.product_id) }}">
-          <button class="btn btn-lg btn-outline" aria-pressed="{{ 'true' if in_wishlist else 'false' }}">
-            {{ icon('heart', 18) }}{{ 'Saved' if in_wishlist else 'Save' }}
-          </button>
-        </form>
-      {% endif %}
-    </div>
-
-    {# ---------------- Offers (bargaining) ---------------- #}
-    {% if my_offer %}
-      {% if my_offer.status == 'pending' %}
-      <div class="offer-status callout callout-info mt-4" role="status">
-        {{ icon('clock', 18) }}
-        <p><strong>Your offer of ₹{{ my_offer.amount|inr }} is with {{ p.seller_name.split()[0] }}.</strong>
-           You'll get a notification when they reply.</p>
-        <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
-          <input type="hidden" name="next" value="{{ request.path }}">
-          <button class="btn btn-ghost btn-sm">Withdraw</button>
-        </form>
+      {% if reviews %}
+      <hr>
+      {% for r in reviews[:2] %}
+      <div class="{{ 'mt-3' if not loop.first }}">
+        {{ stars(r.rating) }}
+        <p class="mt-2 mb-0">{{ r.comment or 'No written review.' }}</p>
+        <span class="subtext">{{ r.buyer_name }} bought “{{ r.title }}”</span>
       </div>
-      {% else %}
-      <div class="offer-status callout callout-warn mt-4" role="status">
-        {{ icon('receipt', 18) }}
-        <p><strong>{{ p.seller_name.split()[0] }} countered at ₹{{ my_offer.counter_amount|inr }}</strong>
-           (you offered ₹{{ my_offer.amount|inr }}).</p>
-        <div class="cluster">
-          <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='accept_counter') }}"
-                data-confirm-title="Buy for ₹{{ my_offer.counter_amount|inr }}?"
-                data-confirm="This places the order at the counter price. {{ p.seller_name }} will be notified."
-                data-confirm-ok="Buy for ₹{{ my_offer.counter_amount|inr }}" data-confirm-cancel="Not yet">
-            <button class="btn btn-sm">Accept ₹{{ my_offer.counter_amount|inr }}</button>
-          </form>
-          <form method="post" action="{{ url_for('offer_action', oid=my_offer.offer_id, action='withdraw') }}">
-            <input type="hidden" name="next" value="{{ request.path }}">
-            <button class="btn btn-ghost btn-sm">Decline</button>
-          </form>
-        </div>
-      </div>
+      {% endfor %}
       {% endif %}
-    {% elif suggested_offer %}
-    <details class="offer-box mt-4">
-      <summary>{{ icon('receipt', 16) }}Make an offer<span class="hint-inline">Bargain politely, like you would in person</span>{{ icon('chevron-down', 16, 'chev') }}</summary>
-      <form method="post" action="{{ url_for('make_offer', pid=p.product_id) }}" class="offer-form">
-        <div class="field">
-          <label for="offer-amount">Your offer (₹)</label>
-          <input id="offer-amount" name="amount" type="number" inputmode="numeric" min="1" max="{{ (p.price - 1)|int }}"
-                 step="1" value="{{ suggested_offer }}" required aria-describedby="offer-hint">
-          <span class="hint" id="offer-hint">
-            {{ ai_badge() }} Suggested: ₹{{ suggested_offer|inr }}{% if verdict %}, close to our fair-price estimate of ₹{{ verdict.estimate|inr }}{% endif %}. Must be below ₹{{ p.price|inr }}.
-          </span>
-        </div>
-        <div class="field">
-          <label for="offer-msg">Message (optional)</label>
-          <input id="offer-msg" name="message" maxlength="140" placeholder="e.g. I can pick it up today near the library">
-        </div>
-        <button class="btn">Send offer</button>
-      </form>
-    </details>
-    {% endif %}
-  </section>
+    </section>
+  </div>
 </div>
 
 {% if also %}
 <section class="section" aria-labelledby="also-title">
   <div class="section-head">
-    <div>
-      <span class="eyebrow ai">{{ icon('users', 14) }}Collaborative filtering</span>
-      <h2 id="also-title">Students who viewed this also viewed</h2>
-    </div>
-    {{ ai_badge("Learned from browsing") }}
+    <h2 id="also-title">Students who viewed this also viewed</h2>
+    <span class="sub">Collaborative filtering: a self-join on product views</span>
   </div>
   <div class="grid">
-    {% for a in also %}{{ product_card(a.product, 'Viewed by ' ~ a.shared ~ ' of the same student' ~ ('' if a.shared == 1 else 's'), loop.index0) }}{% endfor %}
-  </div>
-</section>
-{% endif %}
-
-{% if reviews %}
-<section class="section" aria-labelledby="reviews-title">
-  <h2 id="reviews-title">What buyers say about {{ p.seller_name.split()[0] }}</h2>
-  <div class="grid grid-wide">
-    {% for r in reviews %}
-    <article class="card card-quiet review-card">
-      {{ stars(r.rating) }}
-      <p>{{ r.comment or 'No written review.' }}</p>
-      <span class="subtext">{{ r.buyer_name }} bought “{{ r.title }}”</span>
-    </article>
-    {% endfor %}
+    {% for a in also %}{{ product_card(a.product, 'viewed by ' ~ a.shared ~ ' of the same student' ~ ('' if a.shared == 1 else 's'), loop.index0) }}{% endfor %}
   </div>
 </section>
 {% endif %}
@@ -178,13 +194,11 @@
 {% if similar %}
 <section class="section" aria-labelledby="similar-title">
   <div class="section-head">
-    <div>
-      <span class="eyebrow ai">{{ icon('sparkles', 14) }}Content similarity</span>
-      <h2 id="similar-title">Similar items</h2>
-    </div>
+    <h2 id="similar-title">Similar items</h2>
+    <span class="sub">Content similarity: TF-IDF on titles and descriptions</span>
   </div>
   <div class="grid">
-    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this item', loop.index0) }}{% endfor %}
+    {% for s in similar %}{{ product_card(s.product, (s.score * 100)|round|int ~ '% similar to this one', loop.index0 + 4) }}{% endfor %}
   </div>
 </section>
 {% endif %}

@@ -238,21 +238,75 @@ def logout():
 # =====================================================================
 @app.route("/")
 def index():
-    recs, personalised, recent_searches = [], False, []
+    recs, personalised, recent_searches, finding, board = [], False, [], None, {}
     if g.user and g.user["role"] == "user":
-        recs, personalised = recommender.recommend_for_user(get_db(), g.user["user_id"])
+        uid = g.user["user_id"]
+        recs, personalised = recommender.recommend_for_user(get_db(), uid)
         recent_searches = query(
             """SELECT query, MAX(searched_at) AS t FROM search_history WHERE user_id = ?
-               GROUP BY LOWER(query) ORDER BY t DESC LIMIT 6""", (g.user["user_id"],))
+               GROUP BY LOWER(query) ORDER BY t DESC LIMIT 6""", (uid,))
+        finding = home_finding(uid)
+        board = {
+            "offers": query("""SELECT o.offer_id, o.status, o.amount, o.counter_amount, p.product_id, p.title,
+                                      p.category_id, CASE WHEN o.buyer_id = ? THEN 'out' ELSE 'in' END AS side
+                               FROM offers o JOIN products p ON p.product_id = o.product_id
+                               WHERE (o.buyer_id = ? OR p.seller_id = ?) AND o.status IN ('pending', 'countered')
+                               ORDER BY COALESCE(o.updated_at, o.created_at) DESC LIMIT 3""", (uid, uid, uid)),
+            "notes": query("""SELECT message, created_at, is_read FROM notifications WHERE user_id = ?
+                              ORDER BY created_at DESC, notif_id DESC LIMIT 3""", (uid,)),
+            "searches": query("SELECT COUNT(*) AS n FROM search_history WHERE user_id = ?", (uid,), one=True)["n"],
+        }
     else:
         recs = recommender.trending(get_db(), None)
 
     latest = query("""SELECT * FROM v_product_details WHERE status = 'available'
-                      ORDER BY created_at DESC LIMIT 8""")
+                      ORDER BY created_at DESC LIMIT 4""")
     cat_counts = {r["category_id"]: r["n"] for r in query(
         "SELECT category_id, COUNT(*) AS n FROM products WHERE status = 'available' GROUP BY category_id")}
-    return render_template("index.html", recs=recs, personalised=personalised,
+    return render_template("index.html", recs=recs, personalised=personalised, finding=finding, board=board,
                            recent_searches=recent_searches, latest=latest, cat_counts=cat_counts)
+
+
+def home_finding(uid):
+    """The one thing on the board that most needs this student's attention, with the action it drives."""
+    first = lambda name: name.split()[0]
+    r = query("""SELECT o.counter_amount, o.amount, p.product_id, p.title, s.name AS seller
+                 FROM offers o JOIN products p ON p.product_id = o.product_id JOIN users s ON s.user_id = p.seller_id
+                 WHERE o.buyer_id = ? AND o.status = 'countered' ORDER BY o.updated_at DESC LIMIT 1""", (uid,), one=True)
+    if r:
+        return {"kind": "Counter-offer", "label": "Reply to the counter", "url": url_for("product", pid=r["product_id"]),
+                "text": f"{first(r['seller'])} countered your ₹{inr(r['amount'])} offer on {r['title']} "
+                        f"at ₹{inr(r['counter_amount'])}."}
+    r = query("""SELECT COUNT(*) AS n, MAX(o.amount) AS amount, MAX(p.title) AS title, MAX(b.name) AS buyer
+                 FROM offers o JOIN products p ON p.product_id = o.product_id JOIN users b ON b.user_id = o.buyer_id
+                 WHERE p.seller_id = ? AND o.status = 'pending'""", (uid,), one=True)
+    if r["n"]:
+        text = (f"{first(r['buyer'])} offered ₹{inr(r['amount'])} for your {r['title']}." if r["n"] == 1
+                else f"{r['n']} offers on your items are waiting for your reply.")
+        return {"kind": "Offer received", "label": "Review offers", "url": url_for("orders", tab="offers"), "text": text}
+    r = query("""SELECT p.product_id, p.title, a.old_value, a.new_value
+                 FROM wishlist w JOIN products p ON p.product_id = w.product_id
+                 JOIN audit_log a ON a.table_name = 'products' AND a.row_id = p.product_id AND a.field = 'price'
+                 WHERE w.user_id = ? AND p.status = 'available'
+                   AND CAST(a.new_value AS REAL) < CAST(a.old_value AS REAL)
+                 ORDER BY a.audit_id DESC LIMIT 1""", (uid,), one=True)
+    if r:
+        return {"kind": "Price drop", "label": "See the item", "url": url_for("product", pid=r["product_id"]),
+                "text": f"{r['title']} on your wishlist dropped to ₹{inr(float(r['new_value']))} "
+                        f"(was ₹{inr(float(r['old_value']))})."}
+    r = query("""SELECT p.product_id, p.title, s.name AS seller FROM orders o
+                 JOIN products p ON p.product_id = o.product_id JOIN users s ON s.user_id = p.seller_id
+                 WHERE o.buyer_id = ? AND o.status = 'placed' ORDER BY o.ordered_at DESC LIMIT 1""", (uid,), one=True)
+    if r:
+        return {"kind": "Ready for pickup", "label": "See pickup details", "url": url_for("product", pid=r["product_id"]),
+                "text": f"Pick up {r['title']} from {first(r['seller'])}. Their number is on the slip."}
+    r = query("""SELECT o.amount, p.product_id, p.title, s.name AS seller FROM offers o
+                 JOIN products p ON p.product_id = o.product_id JOIN users s ON s.user_id = p.seller_id
+                 WHERE o.buyer_id = ? AND o.status = 'pending' ORDER BY o.created_at DESC LIMIT 1""", (uid,), one=True)
+    if r:
+        return {"kind": "Offer sent", "label": "See your offer", "url": url_for("product", pid=r["product_id"]),
+                "text": f"Your ₹{inr(r['amount'])} offer on {r['title']} is with {first(r['seller'])}."}
+    return None
 
 
 @app.route("/search")
@@ -357,6 +411,13 @@ def product(pid):
     if change and float(change["new_value"]) < float(change["old_value"]):
         price_drop = {"was": float(change["old_value"]), "at": change["changed_at"]}
 
+    my_order = None
+    if g.user and not is_owner:
+        my_order = query("""SELECT o.order_id, o.status, o.price, s.phone AS seller_phone FROM orders o
+                            JOIN users s ON s.user_id = ? WHERE o.product_id = ? AND o.buyer_id = ?
+                            AND o.status IN ('placed', 'completed') ORDER BY o.order_id DESC LIMIT 1""",
+                         (p["seller_id"], pid, g.user["user_id"]), one=True)
+
     my_offer, open_offers, suggested_offer = None, 0, None
     if is_owner:
         open_offers = query("SELECT COUNT(*) AS n FROM offers WHERE product_id = ? AND status = 'pending'",
@@ -370,7 +431,8 @@ def product(pid):
     return render_template("product.html", p=p, is_owner=is_owner, in_wishlist=in_wishlist,
                            reviews=reviews, verdict=verdict, similar=similar, views=views, also=also,
                            price_drop=price_drop, my_offer=my_offer, open_offers=open_offers,
-                           suggested_offer=suggested_offer)
+                           suggested_offer=suggested_offer, my_order=my_order,
+                           torn=request.args.get("torn") == "1")
 
 
 # =====================================================================
@@ -417,8 +479,8 @@ def buy(pid):
     except sqlite3.DatabaseError as e:
         flash(friendly_error(e, "We couldn't place your order. Please try again."), "danger")
         return redirect(url_for("product", pid=pid))
-    flash("Order placed. Call the seller (number below) to arrange a campus pickup.", "success")
-    return redirect(url_for("orders"))
+    flash("Order placed. Call the seller on the number from the slip to arrange a campus pickup.", "success")
+    return redirect(url_for("product", pid=pid, torn=1))
 
 
 # =====================================================================
@@ -491,7 +553,7 @@ def offer_action(oid, action):
     if action == "accept":
         return redirect(url_for("orders", tab="sales"))
     if action == "accept_counter":
-        return redirect(url_for("orders"))
+        return redirect(url_for("product", pid=o["product_id"], torn=1))
     return redirect(back)
 
 
@@ -499,14 +561,14 @@ def offer_action(oid, action):
 @login_required
 def orders():
     uid = g.user["user_id"]
-    purchases = query("""SELECT o.*, d.title, d.category_icon, d.seller_name, d.seller_id,
+    purchases = query("""SELECT o.*, d.title, d.category_id, d.category_icon, d.seller_name, d.seller_id,
                                 s.phone AS seller_phone, r.rating
                          FROM orders o
                          JOIN v_product_details d ON d.product_id = o.product_id
                          JOIN users s ON s.user_id = d.seller_id
                          LEFT JOIN reviews r ON r.order_id = o.order_id
                          WHERE o.buyer_id = ? ORDER BY o.ordered_at DESC""", (uid,))
-    sales = query("""SELECT o.*, p.title, c.icon AS category_icon, b.name AS buyer_name,
+    sales = query("""SELECT o.*, p.title, p.category_id, c.icon AS category_icon, b.name AS buyer_name,
                             b.phone AS buyer_phone, r.rating
                      FROM orders o
                      JOIN products p   ON p.product_id = o.product_id
@@ -515,13 +577,13 @@ def orders():
                      LEFT JOIN reviews r ON r.order_id = o.order_id
                      WHERE p.seller_id = ? ORDER BY o.ordered_at DESC""", (uid,))
     open_first = "CASE o.status WHEN 'pending' THEN 0 WHEN 'countered' THEN 1 ELSE 2 END, o.created_at DESC"
-    offers_in = query(f"""SELECT o.*, p.title, p.price AS asking, c.icon AS category_icon, b.name AS buyer_name
+    offers_in = query(f"""SELECT o.*, p.title, p.category_id, p.price AS asking, c.icon AS category_icon, b.name AS buyer_name
                           FROM offers o
                           JOIN products p   ON p.product_id = o.product_id
                           JOIN categories c ON c.category_id = p.category_id
                           JOIN users b      ON b.user_id = o.buyer_id
                           WHERE p.seller_id = ? ORDER BY {open_first}""", (uid,))
-    offers_out = query(f"""SELECT o.*, p.title, p.price AS asking, c.icon AS category_icon, s.name AS seller_name
+    offers_out = query(f"""SELECT o.*, p.title, p.category_id, p.price AS asking, c.icon AS category_icon, s.name AS seller_name
                            FROM offers o
                            JOIN products p   ON p.product_id = o.product_id
                            JOIN categories c ON c.category_id = p.category_id

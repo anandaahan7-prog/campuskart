@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status_pill, icon, empty_state %}
+{% from "_macros.html" import status_pill, icon, empty_state, swatch %}
 {% block title %}My listings{% endblock %}
 {% block content %}
-<div class="section-head">
+<div class="section-head page-head">
   <div>
     <h1>My listings</h1>
-    <p class="muted mb-0">Everything you've put up for sale, with how many people viewed or saved it.</p>
+    <p>Everything you've pinned up, with how many students viewed or saved it.</p>
   </div>
-  <a class="btn" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell an item</a>
+  <a class="btn btn-pin" href="{{ url_for('sell') }}">{{ icon('plus', 16) }}Sell an item</a>
 </div>
 {% if items %}
 <div class="card card-flush table-wrap">
@@ -22,7 +22,7 @@
     {% for p in items %}
     <tr>
       <td>
-        <a class="item-link" href="{{ url_for('product', pid=p.product_id) }}"><span aria-hidden="true">{{ p.category_icon }}</span>{{ p.title }}</a>
+        <a class="item-link" href="{{ url_for('product', pid=p.product_id) }}">{{ swatch(p.category_id) }}{{ p.title }}</a>
         {% if p.status == 'pending' and p.flag_reason %}<span class="subtext text-warn">Waiting for admin review: {{ p.flag_reason }}</span>{% endif %}
       </td>
       <td class="num">₹{{ p.price|inr }}</td>

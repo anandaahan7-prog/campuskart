@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T18:30:00Z",
+  "title": "Design System: CampusKart",
+  "extensions": {
+    "colorMeta": {
+      "frame": { "role": "neutral", "displayName": "Walnut frame", "tonalRamp": ["#0e0a07", "#1f150e", "#36251a", "#4a3424", "#6b4d36", "#927259", "#bba088", "#e3d3c2"] },
+      "cork": { "role": "neutral", "displayName": "Cork board", "tonalRamp": ["#2a2018", "#4b3b2b", "#6e5840", "#937a5c", "#b89c79", "#d5bd9b", "#ead9bf", "#f6eddf"] },
+      "paper": { "role": "neutral", "displayName": "Paper", "tonalRamp": ["#322920", "#4a4036", "#6a5f53", "#958a7d", "#c2b8aa", "#e4d9c6", "#f6f0e4", "#fffdf8"] },
+      "pin": { "role": "primary", "displayName": "Pushpin red", "tonalRamp": ["#3d0b08", "#6e1510", "#9a1e17", "#cf2e26", "#e2574e", "#ee8a83", "#f7bdb8", "#fde8e6"] },
+      "pen": { "role": "secondary", "displayName": "Ballpoint blue", "tonalRamp": ["#0a1a42", "#12296b", "#183a96", "#1d4fc4", "#4b74db", "#7f9ee9", "#b6c8f4", "#e6edfc"] },
+      "canary": { "role": "category", "displayName": "Canary paper (books)" },
+      "sky": { "role": "category", "displayName": "Sky paper (electronics)" },
+      "pink": { "role": "category", "displayName": "Pink paper (drawing)" },
+      "mint": { "role": "category", "displayName": "Mint paper (lab)" },
+      "peach": { "role": "category", "displayName": "Peach paper (hostel)" },
+      "sage": { "role": "category", "displayName": "Sage paper (cycles)" },
+      "aqua": { "role": "category", "displayName": "Aqua paper (sports)" },
+      "good": { "role": "status", "displayName": "Green stamp" },
+      "warn": { "role": "status", "displayName": "Amber stamp" },
+      "bad": { "role": "status", "displayName": "Brick stamp" }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "One h1 per screen, Archivo condensed 82% at 800." },
+      "price": { "displayName": "Price", "purpose": "Prices on slips, condensed, tabular figures." },
+      "price-hero": { "displayName": "Product price", "purpose": "The price on the product slip only." },
+      "hand": { "displayName": "Hand", "purpose": "AI notes, finding labels and the footer line, in ballpoint blue or cork ink." }
+    },
+    "shadows": [
+      { "name": "shadow-slip", "value": "0 1px 1px rgb(54 37 26 / 0.08), 0 3px 8px -3px rgb(54 37 26 / 0.08)", "purpose": "Paper panels resting on cork." },
+      { "name": "drop-slip", "value": "drop-shadow(0 1px 1px rgb(54 37 26 / 0.10)) drop-shadow(0 3px 5px rgb(54 37 26 / 0.07))", "purpose": "Slips, chips, category tabs: follows the paper's shape so a torn tab shows the cork." },
+      { "name": "shadow-float", "value": "0 2px 6px rgb(30 20 12 / 0.10), 0 16px 36px -10px rgb(30 20 12 / 0.30)", "purpose": "Menus, toasts and the confirm dialog." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "Press feedback, hover lift, menus, toasts arriving, the number landing in hand." },
+      { "name": "ease-in", "value": "cubic-bezier(0.55, 0, 0.75, 0.2)", "purpose": "The tab falling away (an exit)." },
+      { "name": "press", "value": "140ms scale(0.97)", "purpose": "Every pressable control." },
+      { "name": "tear", "value": "820ms ease-in, 300ms delay; then in-hand 420ms ease-out at 900ms", "purpose": "The one authored moment, after Buy or Accept counter." },
+      { "name": "page", "value": "160ms cross-fade; 320ms shared-element morph of the slip picture", "purpose": "View transitions between pages." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "720px" },
+      { "name": "tablet", "value": "960px" },
+      { "name": "rail", "value": "1100px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pin button",
+      "kind": "button",
+      "refersTo": "button-pin",
+      "description": "The screen's one next action.",
+      "html": "<button class=\"ds-btn-pin\">Buy for ₹450</button>",
+      "css": ".ds-btn-pin { background: #cf2e26; color: #fff; min-height: 40px; padding: 0 16px; border: 0; border-radius: 6px; font: 600 14px Archivo, system-ui, sans-serif; cursor: pointer; transition: background-color .16s, transform .14s cubic-bezier(.23,1,.32,1); } .ds-btn-pin:hover { background: #b3241d; } .ds-btn-pin:active { transform: scale(.97); } .ds-btn-pin:focus-visible { outline: 2px solid #1d4fc4; outline-offset: 2px; }"
+    },
+    {
+      "name": "Ink button",
+      "kind": "button",
+      "refersTo": "button-ink",
+      "description": "Default action: log in, save, apply filters, approve.",
+      "html": "<button class=\"ds-btn-ink\">Save changes</button>",
+      "css": ".ds-btn-ink { background: #1f1711; color: #fffdf8; min-height: 40px; padding: 0 16px; border: 0; border-radius: 6px; font: 600 14px Archivo, system-ui, sans-serif; cursor: pointer; transition: background-color .16s, transform .14s cubic-bezier(.23,1,.32,1); } .ds-btn-ink:hover { background: #4a3d31; } .ds-btn-ink:active { transform: scale(.97); } .ds-btn-ink:focus-visible { outline: 2px solid #1d4fc4; outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Secondary actions on paper.",
+      "html": "<button class=\"ds-btn-outline\">Save</button>",
+      "css": ".ds-btn-outline { background: #fffdf8; color: #1f1711; min-height: 40px; padding: 0 16px; border: 1px solid #9b886d; border-radius: 6px; font: 600 14px Archivo, system-ui, sans-serif; cursor: pointer; } .ds-btn-outline:hover { background: #f6f0e4; border-color: #4a3d31; } .ds-btn-outline:focus-visible { outline: 2px solid #1d4fc4; outline-offset: 2px; }"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Paper field; the header search sits on the walnut bar.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Search the board: books, calculators, cycles…\">",
+      "css": ".ds-input { width: 100%; min-height: 40px; padding: 8px 12px; background: #fffdf8; color: #1f1711; border: 1px solid #9b886d; border-radius: 6px; font: 16px Archivo, system-ui, sans-serif; } .ds-input::placeholder { color: #6a5949; } .ds-input:focus { outline: none; border-color: #1d4fc4; box-shadow: 0 0 0 3px rgb(29 79 196 / .22); }"
+    },
+    {
+      "name": "Slip",
+      "kind": "card",
+      "refersTo": "slip",
+      "description": "A listing: category paper, brass pin, AI reason in pen, tear-off tabs.",
+      "html": "<a class=\"ds-slip\" href=\"#\"><span class=\"ds-slip-body\"><span class=\"ds-top\"><span>Like new</span><span>Books</span></span><span class=\"ds-title\">Let Us Python - Kanetkar</span><span class=\"ds-price\">₹290 <s>₹450</s></span><span class=\"ds-note\">Because you searched “python”</span><span class=\"ds-meta\">Meera Joshi</span></span><span class=\"ds-tabs\"><span><b>Meera</b></span><span><b>Meera</b></span><span><b>Meera</b></span><span><b>Meera</b></span></span></a>",
+      "css": ".ds-slip { display: flex; flex-direction: column; width: 240px; color: #1f1711; text-decoration: none; transform: rotate(-.6deg); filter: drop-shadow(0 1px 1px rgb(54 37 26 / .1)) drop-shadow(0 3px 5px rgb(54 37 26 / .07)); transition: transform .22s cubic-bezier(.23,1,.32,1); font-family: Archivo, system-ui, sans-serif; } .ds-slip:hover { transform: translateY(-3px); } .ds-slip-body { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 24px 16px 12px; background: #fff3b0; border-radius: 2px 2px 0 0; } .ds-slip-body::before { content: ''; position: absolute; top: 7px; left: 50%; width: 13px; height: 13px; margin-left: -6.5px; border-radius: 50%; background: #b8892f; box-shadow: inset 0 0 0 1.5px #7d5b1c; } .ds-top { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; color: #6a5949; } .ds-title { font-weight: 600; font-size: 16px; } .ds-price { font-weight: 800; font-stretch: 82%; font-size: 20px; } .ds-price s { font-size: 13px; font-weight: 400; color: #6a5949; } .ds-note { font: 600 20px/1.1 Caveat, cursive; color: #1d4fc4; } .ds-meta { font-size: 13px; color: #6a5949; } .ds-tabs { display: grid; grid-template-columns: repeat(4, 1fr); } .ds-tabs span { display: grid; place-items: center; height: 76px; background: #fff3b0; border-top: 1.5px dashed rgb(31 23 17 / .3); font-size: 13px; color: #4a3d31; } .ds-tabs span + span { border-left: 1px dashed rgb(31 23 17 / .22); } .ds-tabs b { font-weight: 600; writing-mode: vertical-rl; transform: rotate(180deg); }"
+    },
+    {
+      "name": "Sticky note finding",
+      "kind": "custom",
+      "refersTo": "sticky-note",
+      "description": "The one finding on the home board, with its red action.",
+      "html": "<div class=\"ds-note-card\"><span class=\"ds-hand\">Counter-offer</span><p>Arjun countered your ₹420 offer on Grewal maths at ₹470.</p><button>Reply to the counter</button></div>",
+      "css": ".ds-note-card { width: 300px; padding: 16px 20px 20px; background: #fff3b0; color: #1f1711; border-radius: 2px; transform: rotate(-.8deg); box-shadow: 0 1px 1px rgb(54 37 26 / .08), 0 3px 8px -3px rgb(54 37 26 / .08); font-family: Archivo, system-ui, sans-serif; } .ds-hand { font: 600 20px/1.1 Caveat, cursive; color: #1d4fc4; } .ds-note-card p { font-size: 16px; font-weight: 600; margin: 4px 0 12px; } .ds-note-card button { background: #cf2e26; color: #fff; border: 0; border-radius: 6px; min-height: 40px; padding: 0 16px; font: 600 14px Archivo, sans-serif; }"
+    },
+    {
+      "name": "Stamp",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A state as a rubber-stamp mark.",
+      "html": "<span class=\"ds-stamp ds-warn\">Countered</span> <span class=\"ds-stamp ds-good\">Completed</span> <span class=\"ds-stamp ds-bad\">Declined</span>",
+      "css": ".ds-stamp { display: inline-flex; padding: 1px 8px; border: 1.5px solid currentColor; border-radius: 3px; font: 700 12px/1.45 Archivo, sans-serif; font-stretch: 82%; } .ds-good { color: #1a6b3c; background: rgb(26 107 60 / .07); } .ds-warn { color: #8a4b08; background: rgb(138 75 8 / .07); } .ds-bad { color: #a3261d; background: rgb(163 38 29 / .07); }"
+    },
+    {
+      "name": "Top bar",
+      "kind": "nav",
+      "description": "The walnut frame: logo pin, search, paper Sell button, links.",
+      "html": "<nav class=\"ds-bar\"><b>CampusKart</b><a href=\"#\" class=\"ds-sell\">Sell an item</a><a href=\"#\" aria-current=\"page\">Orders</a><a href=\"#\">Wishlist</a></nav>",
+      "css": ".ds-bar { display: flex; align-items: center; gap: 16px; height: 56px; padding: 0 24px; background: #36251a; color: #f5ead9; font: 600 14px Archivo, sans-serif; } .ds-bar b { font-weight: 800; font-stretch: 82%; font-size: 20px; margin-right: auto; } .ds-bar a { color: #cdb99d; text-decoration: none; } .ds-bar a:hover, .ds-bar a[aria-current] { color: #f5ead9; } .ds-bar a[aria-current] { text-decoration: underline; text-underline-offset: 8px; text-decoration-thickness: 2px; } .ds-sell { background: #fffdf8; color: #1f1711 !important; padding: 7px 12px; border-radius: 6px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The department notice board, made searchable",
+    "overview": "CampusKart turns the corridor notice board into the interface. A walnut frame holds one cork sheet; listings are paper slips in category colours held by brass pins, with tear-off tabs at the foot. Red is the pushpin and marks the one next action; the AI writes its notes by hand in ballpoint blue. Screens are working tools, so layouts stay conventional and the world lives in materials, marks and one authored moment: buying tears a tab off the slip and puts the seller's number in your hand.",
+    "keyCharacteristics": [
+      "Framed sheet: walnut bar and L-frame around one cork board",
+      "Paper colour encodes category everywhere",
+      "Pushpin red for the one next action only",
+      "AI output handwritten in ballpoint blue",
+      "States as outlined rubber stamps",
+      "The tear-off tab as the signature interaction"
+    ],
+    "rules": [
+      { "name": "The Pushpin Rule", "body": "Red appears once per screen, on the action that moves the deal forward.", "section": "colors" },
+      { "name": "The Pen Rule", "body": "Blue means the AI said it. Nothing else is blue except the focus ring.", "section": "colors" },
+      { "name": "The Paper Rule", "body": "Category is told by paper colour, never by emoji or tinted icon boxes.", "section": "colors" },
+      { "name": "Two Faces Rule", "body": "Archivo and Caveat only; monospace for literal SQL.", "section": "typography" },
+      { "name": "Border or shadow, never both", "body": "Paper has a shallow shadow; strips on paper use a tone step.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put the screen's one finding first, with its red action beside it.",
+      "Do write every AI output in the pen.",
+      "Do use the category paper colour wherever a listing appears.",
+      "Do keep figures tabular and right-aligned in tables.",
+      "Do keep the tear-off as the only authored animation."
+    ],
+    "donts": [
+      "Don't use red for anything but the next action.",
+      "Don't use emoji or tinted icon boxes for categories.",
+      "Don't add eyebrows, gradients, glass or glowing buttons.",
+      "Don't animate content in on page load.",
+      "Don't set titles above 32px or figures above 40px on working screens."
+    ]
+  }
+}

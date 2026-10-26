@@ -2,6 +2,16 @@
 {% from "_macros.html" import product_card, icon, ai_badge, empty_state %}
 {% block title %}{{ 'Results for ' ~ q if q else 'Browse items' }}{% endblock %}
 {% block content %}
+<div class="section-head">
+  <div>
+    <h1 id="results-title">{% if q %}Results for “{{ q }}”{% else %}Everything on the board{% endif %}</h1>
+    {% if q and g.user and g.user.role == 'user' %}
+    <span class="note">saved to your search history, so your picks get better</span>
+    {% endif %}
+  </div>
+  <span class="results-meta" role="status">{{ results|length }} item{{ '' if results|length == 1 else 's' }}</span>
+</div>
+
 <form class="card filters" method="get" aria-label="Search filters">
   <div class="field">
     <label for="f-q">Search</label>
@@ -36,15 +46,7 @@
   <button class="btn">{{ icon('sliders', 16) }}Apply filters</button>
 </form>
 
-<section class="section" aria-labelledby="results-title">
-  <div class="section-head">
-    <h1 id="results-title" class="h2">{% if q %}Results for “{{ q }}”{% else %}All items{% endif %}</h1>
-    <span class="results-meta" role="status">{{ results|length }} item{{ '' if results|length == 1 else 's' }}</span>
-  </div>
-  {% if q and g.user and g.user.role == 'user' %}
-  <p class="small muted title-icon">{{ icon('sparkles', 14) }}Saved to your search history to improve your recommendations.</p>
-  {% endif %}
-
+<section class="mt-6" aria-labelledby="results-title">
   {% if results %}
     <div class="grid">{% for p in results %}{{ product_card(p, None, loop.index0) }}{% endfor %}</div>
   {% else %}
@@ -53,9 +55,11 @@
                    'Clear filters', url_for('search')) }}
     {% if ai_suggestions %}
     <div class="section">
-      <div class="callout callout-ai mb-4">
-        {{ ai_badge() }}
-        <p><strong>Did you mean one of these?</strong> Smart search also matches typos and partial words.</p>
+      <div class="section-head">
+        <div>
+          <h2 class="title-icon">{{ ai_badge() }}Did you mean one of these?</h2>
+          <span class="note">smart search also matches typos and partial words</span>
+        </div>
       </div>
       <div class="grid">{% for p in ai_suggestions %}{{ product_card(p, None, loop.index0) }}{% endfor %}</div>
     </div>
